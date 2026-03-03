@@ -35,10 +35,27 @@ impl BindingKey {
 }
 
 pub fn find_binding<'a>(profile: &'a Profile, key: &BindingKey) -> Option<&'a Binding> {
-    profile
+    if let Some(exact) = profile
         .bindings
         .iter()
         .find(|binding| BindingKey::from_binding(binding) == *key)
+    {
+        return Some(exact);
+    }
+
+    // Back-compat fallback for profiles saved with a stale MIDI device id.
+    // If exactly one binding matches channel+controller, use it.
+    // This keeps older bindings functional after device index changes.
+    let mut fallback = profile.bindings.iter().filter(|binding| {
+        binding.control.channel == key.channel && binding.control.controller == key.controller
+    });
+
+    let first = fallback.next()?;
+    if fallback.next().is_none() {
+        Some(first)
+    } else {
+        None
+    }
 }
 
 pub fn apply_midi_event(

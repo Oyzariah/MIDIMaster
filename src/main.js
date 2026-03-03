@@ -703,11 +703,22 @@ function findBindingForEvent(payload) {
   if (!payload || !bindings.length) {
     return null;
   }
-  return bindings.find((binding) =>
+  const exact = bindings.find((binding) =>
     binding.device_id === payload.device_id
     && binding.control?.channel === payload.channel
     && binding.control?.controller === payload.controller,
   );
+  if (exact) {
+    return exact;
+  }
+
+  // Back-compat fallback for stale saved device IDs.
+  // Match by channel/controller only when this is unambiguous.
+  const fallback = bindings.filter((binding) =>
+    binding.control?.channel === payload.channel
+    && binding.control?.controller === payload.controller,
+  );
+  return fallback.length === 1 ? fallback[0] : null;
 }
 
 function resolveOsdVolume(binding, payload) {
@@ -1107,6 +1118,28 @@ document.addEventListener("pointercancel", () => {
 
 
 async function setupListeners() {
+  await listen("bindings_migrated", (event) => {
+    let payload = event.payload;
+    if (typeof payload === "string") {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        return;
+      }
+    }
+    const deviceId = payload?.device_id;
+    const count = Number(payload?.count || 0);
+    if (!deviceId || !Number.isFinite(count) || count <= 0) {
+      return;
+    }
+
+    bindings = (bindings || []).map((binding) => ({
+      ...binding,
+      device_id: deviceId,
+    }));
+    renderBindings();
+  });
+
   await listen("midi_event", (event) => {
     if (mainScreen.classList.contains("hidden")) {
       midiStatus.textContent = `MIDI: ${JSON.stringify(event.payload)}`;

@@ -1,5 +1,6 @@
 use base64::Engine;
 use futures_util::{SinkExt, StreamExt};
+use serde::Deserialize;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 use tauri::{AppHandle, Emitter, State};
 use tokio::sync::mpsc;
@@ -7,6 +8,11 @@ use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
 use url::Url;
+
+#[derive(Debug, Deserialize)]
+struct WaveLinkWsInfo {
+    port: u16,
+}
 
 #[derive(Clone, Default)]
 pub struct WsHub {
@@ -156,4 +162,29 @@ pub async fn ws_send(hub: State<'_, WsHub>, id: u64, text: String) -> Result<(),
 #[tauri::command]
 pub async fn ws_close(hub: State<'_, WsHub>, id: u64) -> Result<(), String> {
     hub.close(id).await
+}
+
+#[tauri::command]
+pub fn get_wavelink_ws_port() -> Result<Option<u16>, String> {
+    let appdata = std::env::var("APPDATA").map_err(|e| e.to_string())?;
+    let mut path = std::path::PathBuf::from(appdata);
+
+    // APPDATA usually points to ...\AppData\Roaming. Move to ...\AppData.
+    let _ = path.pop();
+    path.push("Local");
+    path.push("Packages");
+    path.push("Elgato.WaveLink_g54w8ztgkx496");
+    path.push("LocalState");
+    path.push("ws-info.json");
+
+    let text = match std::fs::read_to_string(&path) {
+        Ok(t) => t,
+        Err(_) => return Ok(None),
+    };
+    let info: WaveLinkWsInfo = match serde_json::from_str(&text) {
+        Ok(v) => v,
+        Err(_) => return Ok(None),
+    };
+
+    Ok(Some(info.port))
 }

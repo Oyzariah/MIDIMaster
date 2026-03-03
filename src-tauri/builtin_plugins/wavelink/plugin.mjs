@@ -1,13 +1,15 @@
 const ORIGIN = "streamdeck://";
 const HOST = "127.0.0.1";
-const PORT_START = 1884;
-const PORT_END = 1893;
+const CONNECT_TIMEOUT_MS = 2000;
+const APP_INFO_TIMEOUT_MS = 1500;
 
 // Wave Link (and the websocket bridge) can get overwhelmed if we send a JSON-RPC
 // message for every tiny fader tick. Coalesce rapid volume updates and only send
 // the latest value at a steady rate.
 const VOLUME_WRITE_INTERVAL_MS = 16;
 const VOLUME_WRITE_EPSILON = 0.002;
+const STATE_REFRESH_DEBOUNCE_MS = 120;
+const LOCAL_WRITE_QUIET_MS = 250;
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -71,23 +73,36 @@ function normalizeEndpoint(target) {
     return null;
   }
   const data = t.data || {};
+  const identifier = String(
+    data.identifier
+    ?? data.channel_id
+    ?? data.channelId
+    ?? data.id
+    ?? "",
+  );
+  const mixerId = String(
+    data.mixer_id
+    ?? data.mix_id
+    ?? data.mixId
+    ?? "",
+  );
 
   // New shapes
   if (t.kind === "mix") {
-    return { identifier: "", mixer_id: String(data.mixer_id || "") };
+    return { identifier: "", mixer_id: mixerId };
   }
   if (t.kind === "channel") {
-    return { identifier: String(data.identifier || ""), mixer_id: "" };
+    return { identifier, mixer_id: "" };
   }
   if (t.kind === "channel_mix") {
-    return { identifier: String(data.identifier || ""), mixer_id: String(data.mixer_id || "") };
+    return { identifier, mixer_id: mixerId };
   }
 
   // Back-compat
   if (t.kind === "endpoint") {
     return {
-      identifier: String(data.identifier || ""),
-      mixer_id: String(data.mixer_id || ""),
+      identifier,
+      mixer_id: mixerId,
     };
   }
 
@@ -149,6 +164,10 @@ export async function activate(ctx) {
   const lastSentVolumeByEndpoint = new Map();
   let volumeFlushTimer = null;
   let volumeFlushInFlight = false;
+  let channelsRefreshTimer = null;
+  let mixesRefreshTimer = null;
+  let lastLocalVolumeWriteAt = 0;
+  const pendingAppInfoByWsId = new Map();
 
   function endpointKey(endpoint) {
     if (!endpoint) return "";
@@ -189,6 +208,7 @@ export async function activate(ctx) {
             101,
           );
         }
+        lastLocalVolumeWriteAt = Date.now();
         lastSentVolumeByEndpoint.set(endpointKey(endpoint), level);
       }
     } catch {
@@ -222,6 +242,24 @@ export async function activate(ctx) {
     }
     pendingVolumeWrites.set(key, { endpoint, level });
     scheduleVolumeFlush();
+  }
+
+  function scheduleChannelsRefresh() {
+    if (channelsRefreshTimer) return;
+    channelsRefreshTimer = setTimeout(() => {
+      channelsRefreshTimer = null;
+      if (!wsId) return;
+      sendJsonRpc("getChannels", {}, 3).catch(() => {});
+    }, STATE_REFRESH_DEBOUNCE_MS);
+  }
+
+  function scheduleMixesRefresh() {
+    if (mixesRefreshTimer) return;
+    mixesRefreshTimer = setTimeout(() => {
+      mixesRefreshTimer = null;
+      if (!wsId) return;
+      sendJsonRpc("getMixes", {}, 2).catch(() => {});
+    }, STATE_REFRESH_DEBOUNCE_MS);
   }
 
   function readBindings() {
@@ -434,14 +472,11 @@ export async function activate(ctx) {
       req.params = params;
     }
     const payload = JSON.stringify(req);
-    console.error("[wavelink] send", payload);
     await ctx.ws.send(wsId, payload);
   }
 
   async function requestFullState() {
     try {
-      // Match the legacy Rust handshake (no params field).
-      await ctx.ws.send(wsId, JSON.stringify({ jsonrpc: "2.0", method: "getApplicationInfo", id: 1 }));
       await ctx.ws.send(wsId, JSON.stringify({ jsonrpc: "2.0", method: "getMixes", id: 2 }));
       await ctx.ws.send(wsId, JSON.stringify({ jsonrpc: "2.0", method: "getChannels", id: 3 }));
     } catch (e) {
@@ -449,7 +484,37 @@ export async function activate(ctx) {
     }
   }
 
-  function handleWsText(text) {
+  function clearPendingAppInfo(wsKey) {
+    const pending = pendingAppInfoByWsId.get(wsKey);
+    if (!pending) return;
+    try { clearTimeout(pending.timer); } catch { }
+    pendingAppInfoByWsId.delete(wsKey);
+  }
+
+  function waitForApplicationInfo(wsKey, timeoutMs = APP_INFO_TIMEOUT_MS) {
+    clearPendingAppInfo(wsKey);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        pendingAppInfoByWsId.delete(wsKey);
+        resolve(null);
+      }, timeoutMs);
+      pendingAppInfoByWsId.set(wsKey, { resolve, timer });
+    });
+  }
+
+  async function verifyApplicationInfo(wsKey) {
+    try {
+      const wait = waitForApplicationInfo(wsKey, APP_INFO_TIMEOUT_MS);
+      await ctx.ws.send(wsKey, JSON.stringify({ jsonrpc: "2.0", method: "getApplicationInfo", id: 1 }));
+      const result = await wait;
+      return result && typeof result === "object";
+    } catch {
+      clearPendingAppInfo(wsKey);
+      return false;
+    }
+  }
+
+  function handleWsText(text, sourceWsId = null) {
     let json;
     try {
       json = JSON.parse(text);
@@ -459,6 +524,18 @@ export async function activate(ctx) {
     if (!json || typeof json !== "object") return;
 
     const id = json.id;
+    if (id === 1) {
+      const key = sourceWsId || wsId;
+      if (key) {
+        const pending = pendingAppInfoByWsId.get(key);
+        if (pending && typeof pending.resolve === "function") {
+          try { clearTimeout(pending.timer); } catch { }
+          pendingAppInfoByWsId.delete(key);
+          pending.resolve(json.result || null);
+        }
+      }
+      return;
+    }
     if (id === 2) {
       const result = json.result;
       const payload = result?.mixes ?? result;
@@ -481,67 +558,92 @@ export async function activate(ctx) {
     // Notifications (no id)
     if (json.method) {
       if (json.method === "channelsChanged" || json.method === "channelChanged") {
-        sendJsonRpc("getChannels", {}, 3).catch(() => {});
+        if (Date.now() - lastLocalVolumeWriteAt >= LOCAL_WRITE_QUIET_MS) {
+          scheduleChannelsRefresh();
+        }
       }
       if (json.method === "mixesChanged" || json.method === "mixChanged") {
-        sendJsonRpc("getMixes", {}, 2).catch(() => {});
+        if (Date.now() - lastLocalVolumeWriteAt >= LOCAL_WRITE_QUIET_MS) {
+          scheduleMixesRefresh();
+        }
       }
     }
   }
 
+  async function openWsCandidate(port) {
+    const url = `ws://${HOST}:${port}`;
+    try {
+      const id = await ctx.ws.open(url, { Origin: ORIGIN }, CONNECT_TIMEOUT_MS);
+      return { id, port };
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+
+  async function getPortCandidates() {
+    const out = [];
+    try {
+      const port = await ctx.tauri?.invoke?.("get_wavelink_ws_port");
+      const n = Number(port);
+      if (Number.isFinite(n) && n > 0 && n <= 65535) {
+        out.push(Math.trunc(n));
+      }
+    } catch {
+      // ignore
+    }
+    return out;
+  }
+
   async function connectOnce() {
-    console.error("[wavelink] scanning ports...");
     connecting = true;
     setStatus(false, "Scanning...", { connecting: true, disconnectedByUser });
 
-    const ports = [];
-    for (let p = PORT_START; p <= PORT_END; p++) ports.push(p);
+    let connected = null;
+    const ports = await getPortCandidates();
 
-    // Try in parallel; close extras.
-    const attempts = ports.map(async (port) => {
-      const url = `ws://${HOST}:${port}`;
-      try {
-        const id = await ctx.ws.open(url, { Origin: ORIGIN }, 750);
-        return { id, port };
-      } catch (e) {
-        if (port === PORT_START) {
-          console.error("[wavelink] ws_open failed (sample)", e);
-        }
-        return null;
-      }
-    });
-
-    const results = await Promise.all(attempts);
-    const ok = results.find((r) => r && r.id);
-    if (!ok) {
-      console.error("[wavelink] no instance found");
+    if (ports.length === 0) {
       connecting = false;
-      setStatus(false, "Not connected");
+      setStatus(false, "Not connected", { disconnectedByUser });
       return false;
     }
 
-    // Close any extra connections.
-    for (const r of results) {
-      if (r && r.id && r.id !== ok.id) {
-        ctx.ws.close(r.id).catch(() => {});
+    for (const port of ports) {
+      const candidate = await openWsCandidate(port);
+      if (!candidate) continue;
+
+      const candidateId = candidate.id;
+      ctx.ws.onMessage(candidateId, (msg) => {
+        if (msg.type === "text") {
+          handleWsText(msg.data, candidateId);
+        }
+      });
+
+      const verified = await verifyApplicationInfo(candidateId);
+      if (!verified) {
+        clearPendingAppInfo(candidateId);
+        try { await ctx.ws.close(candidateId); } catch { }
+        continue;
       }
+
+      connected = candidate;
+      break;
     }
 
-    wsId = ok.id;
-    connectedPort = ok.port;
-    console.error(`[wavelink] connected on port ${connectedPort} (wsId=${wsId})`);
+    if (!connected) {
+      connecting = false;
+      setStatus(false, "Not connected", { disconnectedByUser });
+      return false;
+    }
+
+    wsId = connected.id;
+    connectedPort = connected.port;
     connecting = false;
     manualConnectRequested = false;
     disconnectedByUser = false;
     wasConnected = true;
     offlineFeedbackSent = false;
     setStatus(true, `Connected (:${connectedPort})`);
-
-    ctx.ws.onMessage(wsId, (msg) => {
-      if (msg.type === "text") {
-        handleWsText(msg.data);
-      }
-    });
 
     await requestFullState();
     return true;
@@ -555,9 +657,11 @@ export async function activate(ctx) {
     }
     const closedId = payload?.id;
     if (wsId && closedId === wsId) {
+      clearPendingAppInfo(closedId);
       wsId = null;
       connectedPort = null;
       connecting = false;
+      pendingVolumeWrites.clear();
       mixes = [];
       channels = [];
       offlineFeedbackSent = false;
@@ -624,9 +728,11 @@ export async function activate(ctx) {
             disconnectedByUser = true;
             manualConnectRequested = false;
             try { ctx.ws?.close?.(wsId); } catch { }
+            clearPendingAppInfo(wsId);
             wsId = null;
             connectedPort = null;
             connecting = false;
+            pendingVolumeWrites.clear();
             mixes = [];
             channels = [];
             offlineFeedbackSent = false;
@@ -781,8 +887,6 @@ export async function activate(ctx) {
       const endpoint = normalizeEndpoint({ Integration: payload?.target });
       if (!endpoint) return;
 
-      console.error("[wavelink] trigger", { action, value, endpoint });
-
       const level = clamp01(value);
       try {
         if (action === "Volume") {
@@ -827,6 +931,7 @@ export async function activate(ctx) {
         // If send failed, force reconnect.
         wsId = null;
         connectedPort = null;
+        pendingVolumeWrites.clear();
         mixes = [];
         channels = [];
         offlineFeedbackSent = false;

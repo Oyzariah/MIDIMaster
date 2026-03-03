@@ -58,7 +58,7 @@ use plugin_api::{
     read_plugin_base64, read_plugin_text, set_plugin_enabled, uninstall_plugin,
 };
 use store_api::{fetch_store_catalog, install_store_plugin};
-use ws_bridge::{ws_close, ws_open, ws_send, WsHub};
+use ws_bridge::{get_wavelink_ws_port, ws_close, ws_open, ws_send, WsHub};
 
 #[cfg(target_os = "windows")]
 use audio::windows::WindowsAudioBackend;
@@ -1042,6 +1042,7 @@ fn main() {
             ws_open,
             ws_send,
             ws_close,
+            get_wavelink_ws_port,
             fetch_store_catalog,
             install_store_plugin,
         ])
