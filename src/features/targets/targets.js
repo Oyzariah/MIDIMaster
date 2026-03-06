@@ -135,7 +135,7 @@ export function createTargetsFeature({
     d.targetPanel.classList.remove("hidden");
   }
 
-  function buildTargetOptions(currentTarget) {
+  function buildTargetOptions(currentTarget, isButton = false) {
     const pluginHost = getHost();
     const sessions = getSess();
     const playbackDevices = getPlayback();
@@ -163,6 +163,7 @@ export function createTargetsFeature({
           : (currentTarget?.Device || currentTarget?.device) ? "device"
             : (currentTarget === "Master" || currentTarget?.Master != null) ? "master"
               : (currentTarget === "Focus" || currentTarget?.Focus != null) ? "focus"
+                : currentTarget === "MediaControl" ? "media-control"
                 : "placeholder"
       );
 
@@ -170,7 +171,7 @@ export function createTargetsFeature({
     if (selectedKind === "integration-target") selectedValue = targetKey(integration);
     else if (selectedKind === "session") selectedValue = selectedAppName || selectedSessionKey || "";
     else if (selectedKind === "device") selectedValue = selectedDeviceId || "";
-    else if (selectedKind === "master" || selectedKind === "focus") selectedValue = selectedKind;
+    else if (selectedKind === "master" || selectedKind === "focus" || selectedKind === "media-control") selectedValue = selectedKind;
     else if (selectedKind === "placeholder") selectedValue = "placeholder";
 
     const options = [
@@ -187,6 +188,15 @@ export function createTargetsFeature({
         kind: "focus",
       },
     ];
+
+    if (isButton) {
+      options.push({
+        value: "media-control",
+        label: "Media Controls",
+        icon_data: null,
+        kind: "media-control",
+      });
+    }
 
     if (pluginHost) {
       const integrations = pluginHost.getIntegrations();
@@ -344,7 +354,7 @@ export function createTargetsFeature({
     let selectedTarget = currentTarget;
     let selectedAction = isBindingButton ? (currentAction || "ToggleMute") : "Volume";
 
-    const { options, selectedValue, selectedKind, activeIntegrationOption } = buildTargetOptions(currentTarget);
+    const { options, selectedValue, selectedKind, activeIntegrationOption } = buildTargetOptions(currentTarget, isBindingButton);
     const placeholderOption = {
       value: "",
       label: "Select an application or device",
@@ -354,6 +364,10 @@ export function createTargetsFeature({
 
     const actionLabel = (action) => {
       if (action === "ToggleMute") return "Toggle Mute";
+      if (action === "MediaPlayPause") return "Media Play/Pause";
+      if (action === "MediaNextTrack") return "Media Next Track";
+      if (action === "MediaPrevTrack") return "Media Previous Track";
+      if (action === "MediaStop") return "Media Stop";
       if (action === "Volume" && isBindingButton) return "Trigger";
       return action;
     };
@@ -404,6 +418,9 @@ export function createTargetsFeature({
       }
       if (option.kind === "focus") {
         return "Focus";
+      }
+      if (option.kind === "media-control") {
+        return "MediaControl";
       }
       if (option.kind === "device") {
         return { Device: { device_id: option.value } };
@@ -459,7 +476,7 @@ export function createTargetsFeature({
 
     button.addEventListener("click", (event) => {
       event.stopPropagation();
-      const { options, selectedValue, selectedKind } = buildTargetOptions(selectedTarget);
+      const { options, selectedValue, selectedKind } = buildTargetOptions(selectedTarget, isBindingButton);
 
       const openRootTargetPanel = () => {
         openTargetPanel(
@@ -473,9 +490,16 @@ export function createTargetsFeature({
             }
 
             if (isBindingButton) {
-              const actionOptions = [
-                { label: "Toggle Mute", value: "ToggleMute", kind: "action" },
-              ];
+              const actionOptions = targetOption.kind === "media-control"
+                ? [
+                  { label: "Media Play/Pause", value: "MediaPlayPause", kind: "action" },
+                  { label: "Media Next Track", value: "MediaNextTrack", kind: "action" },
+                  { label: "Media Previous Track", value: "MediaPrevTrack", kind: "action" },
+                  { label: "Media Stop", value: "MediaStop", kind: "action" },
+                ]
+                : [
+                  { label: "Toggle Mute", value: "ToggleMute", kind: "action" },
+                ];
               setTimeout(() => {
                 openTargetPanel(actionOptions, selectedAction, "action", (actionOption) => {
                   selectOption(targetOption, actionOption.value);

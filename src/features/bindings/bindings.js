@@ -272,9 +272,7 @@ export function createBindingsFeature({
             binding.action = "Volume";
           }
 
-          if (isButton) {
-            binding.action = "ToggleMute";
-          } else {
+          if (!isButton) {
             const newVolume = getVol(binding.target);
             if (volumeSlider) {
               volumeSlider.value = newVolume;

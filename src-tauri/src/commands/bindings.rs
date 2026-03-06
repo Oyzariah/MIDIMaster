@@ -292,6 +292,7 @@ pub fn set_binding_feedback(
                 }
             }
         }
+        _ => {}
     }
 
     Ok(())

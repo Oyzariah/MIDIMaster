@@ -1040,8 +1040,8 @@ if (resetAppDataButton) {
   });
 }
 
-function buildTargetOptions(currentTarget) {
-  return targetsFeature?.buildTargetOptions?.(currentTarget);
+function buildTargetOptions(currentTarget, isButton = false) {
+  return targetsFeature?.buildTargetOptions?.(currentTarget, isButton);
 }
 
 function buildTargetSelect(currentTarget, isBindingButton = false, currentAction = "Volume") {
