@@ -3,11 +3,17 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
 pub struct AppSettings {
     pub start_with_windows: bool,
     pub start_in_tray: bool,
     pub minimize_to_tray: bool,
     pub exit_to_tray: bool,
+    pub ui_theme: String,
+    pub midi_input_device_id: Option<String>,
+    pub midi_output_device_id: Option<String>,
+    pub midi_input_device_name: Option<String>,
+    pub midi_output_device_name: Option<String>,
 }
 
 impl Default for AppSettings {
@@ -17,6 +23,11 @@ impl Default for AppSettings {
             start_in_tray: false,
             minimize_to_tray: false,
             exit_to_tray: false,
+            ui_theme: "light".to_string(),
+            midi_input_device_id: None,
+            midi_output_device_id: None,
+            midi_input_device_name: None,
+            midi_output_device_name: None,
         }
     }
 }

@@ -305,6 +305,14 @@ const mediaStopIconData = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org
 const osdDebugAlways = false;
 const isOsdWindow = new URLSearchParams(window.location.search).has("osd");
 const themeStorageKey = "uiTheme";
+const midiInputStorageKey = "midiDeviceId";
+const midiOutputStorageKey = "midiOutputDeviceId";
+const midiInputNameStorageKey = "midiDeviceName";
+const midiOutputNameStorageKey = "midiOutputDeviceName";
+let persistedMidiInputId = "";
+let persistedMidiOutputId = "";
+let persistedMidiInputName = "";
+let persistedMidiOutputName = "";
 
 function updateThemeToggleMeta(isDark) {
   if (!themeToggleButton) return;
@@ -340,6 +348,123 @@ function toggleTheme() {
     localStorage.setItem(themeStorageKey, nextTheme);
   } catch {
     // ignore storage failures
+  }
+  invoke("set_theme_preference", { theme: nextTheme }).catch(() => { });
+}
+
+function getSavedMidiDeviceIds() {
+  let inputId = "";
+  let outputId = "";
+  let inputName = "";
+  let outputName = "";
+  try {
+    inputId = localStorage.getItem(midiInputStorageKey) || "";
+    outputId = localStorage.getItem(midiOutputStorageKey) || "";
+    inputName = localStorage.getItem(midiInputNameStorageKey) || "";
+    outputName = localStorage.getItem(midiOutputNameStorageKey) || "";
+  } catch {
+    // ignore storage failures
+  }
+
+  return {
+    inputId: inputId || persistedMidiInputId || "",
+    outputId: outputId || persistedMidiOutputId || "",
+    inputName: inputName || persistedMidiInputName || "",
+    outputName: outputName || persistedMidiOutputName || "",
+  };
+}
+
+async function saveMidiDeviceIds(inputId, outputId, inputName = "", outputName = "") {
+  persistedMidiInputId = inputId || "";
+  persistedMidiOutputId = outputId || "";
+  persistedMidiInputName = inputName || "";
+  persistedMidiOutputName = outputName || "";
+  try {
+    if (persistedMidiInputId) {
+      localStorage.setItem(midiInputStorageKey, persistedMidiInputId);
+    }
+    if (persistedMidiOutputId) {
+      localStorage.setItem(midiOutputStorageKey, persistedMidiOutputId);
+    }
+    if (persistedMidiInputName) {
+      localStorage.setItem(midiInputNameStorageKey, persistedMidiInputName);
+    }
+    if (persistedMidiOutputName) {
+      localStorage.setItem(midiOutputNameStorageKey, persistedMidiOutputName);
+    }
+  } catch {
+    // ignore storage failures
+  }
+  if (persistedMidiInputId && persistedMidiOutputId) {
+    await invoke("set_midi_device_preferences", {
+      inputDeviceId: persistedMidiInputId,
+      outputDeviceId: persistedMidiOutputId,
+      inputDeviceName: persistedMidiInputName || null,
+      outputDeviceName: persistedMidiOutputName || null,
+    }).catch(() => { });
+  }
+}
+
+async function clearSavedMidiDeviceIds() {
+  persistedMidiInputId = "";
+  persistedMidiOutputId = "";
+  persistedMidiInputName = "";
+  persistedMidiOutputName = "";
+  try {
+    localStorage.removeItem(midiInputStorageKey);
+    localStorage.removeItem(midiOutputStorageKey);
+    localStorage.removeItem(midiInputNameStorageKey);
+    localStorage.removeItem(midiOutputNameStorageKey);
+  } catch {
+    // ignore storage failures
+  }
+  await invoke("clear_midi_device_preferences").catch(() => { });
+}
+
+async function hydrateClientPreferences() {
+  try {
+    const settings = await invoke("get_app_settings");
+    if (!settings || typeof settings !== "object") {
+      return;
+    }
+
+    const savedTheme = settings.ui_theme ?? settings.uiTheme;
+    if (savedTheme === "light" || savedTheme === "dark") {
+      applyTheme(savedTheme);
+      try {
+        localStorage.setItem(themeStorageKey, savedTheme);
+      } catch {
+        // ignore storage failures
+      }
+    }
+
+    const savedInputId = settings.midi_input_device_id ?? settings.midiInputDeviceId ?? "";
+    const savedOutputId = settings.midi_output_device_id ?? settings.midiOutputDeviceId ?? "";
+    const savedInputName = settings.midi_input_device_name ?? settings.midiInputDeviceName ?? "";
+    const savedOutputName = settings.midi_output_device_name ?? settings.midiOutputDeviceName ?? "";
+    persistedMidiInputId = savedInputId || "";
+    persistedMidiOutputId = savedOutputId || "";
+    persistedMidiInputName = savedInputName || "";
+    persistedMidiOutputName = savedOutputName || "";
+
+    try {
+      if (persistedMidiInputId && !localStorage.getItem(midiInputStorageKey)) {
+        localStorage.setItem(midiInputStorageKey, persistedMidiInputId);
+      }
+      if (persistedMidiOutputId && !localStorage.getItem(midiOutputStorageKey)) {
+        localStorage.setItem(midiOutputStorageKey, persistedMidiOutputId);
+      }
+      if (persistedMidiInputName && !localStorage.getItem(midiInputNameStorageKey)) {
+        localStorage.setItem(midiInputNameStorageKey, persistedMidiInputName);
+      }
+      if (persistedMidiOutputName && !localStorage.getItem(midiOutputNameStorageKey)) {
+        localStorage.setItem(midiOutputNameStorageKey, persistedMidiOutputName);
+      }
+    } catch {
+      // ignore storage failures
+    }
+  } catch {
+    // ignore preference hydration failures
   }
 }
 
@@ -689,6 +814,9 @@ midiFeature = createMidiFeature({
     await invoke("add_binding", { binding });
     await saveBindingsForProfile();
   },
+  getSavedMidiDeviceIds,
+  saveMidiDeviceIds,
+  clearSavedMidiDeviceIds,
 });
 midiFeature.bindUi();
 
@@ -1355,7 +1483,7 @@ async function startMainApp() {
     return;
   }
   appStarted = true;
-  const savedDevice = localStorage.getItem("midiDeviceId");
+  const savedDevice = getSavedMidiDeviceIds().inputId;
   if (savedDevice) {
     setupScreen.classList.add("hidden");
     mainScreen.classList.add("hidden");
@@ -1432,6 +1560,7 @@ async function init() {
   pluginsTabs.preloadInstalledPlugins().catch(() => { });
 
   await loadAppSettings();
+  await hydrateClientPreferences();
   setupScreen.classList.add("hidden");
   mainScreen.classList.add("hidden");
   await startMainApp();
