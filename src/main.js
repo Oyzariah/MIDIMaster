@@ -256,6 +256,7 @@ const learnPanel = document.getElementById("learn-panel");
 const learnPanelMessage = document.getElementById("learn-panel-message");
 const learnPanelClose = document.getElementById("learn-panel-close");
 const settingsButton = document.getElementById("settings-button");
+const themeToggleButton = document.getElementById("theme-toggle-button");
 const settingsPanel = document.getElementById("settings-panel");
 const settingsPanelClose = document.getElementById("settings-panel-close");
 const connectionsButton = document.getElementById("connections-button");
@@ -303,6 +304,44 @@ const mediaPrevTrackIconData = "data:image/svg+xml;utf8,<svg xmlns='http://www.w
 const mediaStopIconData = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'><rect width='18' height='18' rx='4' fill='%232b2d42'/><rect x='5' y='5' width='8' height='8' rx='1.2' fill='white'/></svg>";
 const osdDebugAlways = false;
 const isOsdWindow = new URLSearchParams(window.location.search).has("osd");
+const themeStorageKey = "uiTheme";
+
+function updateThemeToggleMeta(isDark) {
+  if (!themeToggleButton) return;
+  const label = isDark ? "Switch to light mode" : "Switch to dark mode";
+  themeToggleButton.setAttribute("aria-label", label);
+  themeToggleButton.setAttribute("aria-pressed", String(isDark));
+  themeToggleButton.setAttribute("title", label);
+  themeToggleButton.title = label;
+}
+
+function applyTheme(nextTheme) {
+  const isDark = nextTheme === "dark";
+  document.body.classList.toggle("dark-mode", isDark);
+  updateThemeToggleMeta(isDark);
+}
+
+function loadStoredTheme() {
+  try {
+    const stored = localStorage.getItem(themeStorageKey);
+    if (stored === "light" || stored === "dark") {
+      return stored;
+    }
+  } catch {
+    // ignore storage failures
+  }
+  return "light";
+}
+
+function toggleTheme() {
+  const nextTheme = document.body.classList.contains("dark-mode") ? "light" : "dark";
+  applyTheme(nextTheme);
+  try {
+    localStorage.setItem(themeStorageKey, nextTheme);
+  } catch {
+    // ignore storage failures
+  }
+}
 
 const targetCore = createTargetCore({
   masterIconData,
@@ -335,6 +374,8 @@ const defaultOsdSettings = {
 
 if (isOsdWindow) {
   document.body.classList.add("osd-only");
+} else {
+  applyTheme(loadStoredTheme());
 }
 
 function showSetup(statusText) {
@@ -998,6 +1039,10 @@ if (connectionsButton) {
   connectionsButton.addEventListener("click", () => {
     openConnectionsPanel();
   });
+}
+
+if (themeToggleButton) {
+  themeToggleButton.addEventListener("click", toggleTheme);
 }
 
 if (alertClose) {
