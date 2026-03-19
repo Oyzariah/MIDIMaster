@@ -15,6 +15,72 @@ export function createOsdFeature({
 
   const activeOsdCards = new Map();
 
+  function parseLabelParts(rawLabel) {
+    const label = String(rawLabel || "").trim();
+    if (!label) return { base: "", tags: [] };
+
+    const tags = [];
+    const tagPattern = /\(([^()]+)\)/g;
+    let match = null;
+    while ((match = tagPattern.exec(label)) !== null) {
+      const tag = String(match[1] || "").trim();
+      if (tag) tags.push(tag);
+    }
+
+    const base = label.replace(/\s*\([^()]+\)/g, " ").replace(/\s+/g, " ").trim();
+    return { base: base || label, tags };
+  }
+
+  function tagVariant(tag) {
+    const text = String(tag || "").toLowerCase();
+    if (!text) return "neutral";
+    if (text.includes("mix")) return "mix";
+    if (
+      text.includes("toggle")
+      || text.includes("mute")
+      || text.includes("media")
+      || text.includes("stop")
+      || text.includes("play")
+      || text.includes("next")
+      || text.includes("prev")
+      || text.includes("record")
+      || text.includes("stream")
+      || text.includes("visibility")
+      || text.includes("trigger")
+      || text.includes("action")
+    ) {
+      return "action";
+    }
+    return "neutral";
+  }
+
+  function renderLabelWithTags(host, rawLabel) {
+    host.innerHTML = "";
+    const { base, tags } = parseLabelParts(rawLabel);
+
+    const content = document.createElement("span");
+    content.className = "osd-label-content";
+
+    const main = document.createElement("span");
+    main.className = "osd-label-main";
+    main.textContent = base || rawLabel || "Target";
+    content.appendChild(main);
+
+    if (tags.length > 0) {
+      const tagsWrap = document.createElement("span");
+      tagsWrap.className = "osd-label-tags";
+      tags.forEach((tag) => {
+        const badge = document.createElement("span");
+        badge.className = `osd-tag osd-tag--${tagVariant(tag)}`;
+        badge.textContent = tag;
+        tagsWrap.appendChild(badge);
+      });
+      content.appendChild(tagsWrap);
+    }
+
+    host.appendChild(content);
+  }
+
   function getOsdKey(target) {
     const key = keyForTarget(target);
     if (key) return key;
@@ -98,7 +164,7 @@ export function createOsdFeature({
       refs.card.classList.add("visible");
     }
 
-    refs.labelSpan.textContent = display.label;
+    renderLabelWithTags(refs.labelSpan, display.label);
     refs.iconDiv.innerHTML = "";
     const icon = iconFor({ label: display.label, icon_data: display.icon_data });
     refs.iconDiv.appendChild(icon);
@@ -146,7 +212,7 @@ export function createOsdFeature({
       refs.card.classList.add("visible");
     }
 
-    refs.labelSpan.textContent = display.label;
+    renderLabelWithTags(refs.labelSpan, display.label);
     refs.iconDiv.innerHTML = "";
     const icon = iconFor(display);
     refs.iconDiv.appendChild(icon);
