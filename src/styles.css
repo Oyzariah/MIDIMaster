@@ -347,9 +347,86 @@ button:hover {
 }
 
 .target-label {
+  min-width: 0;
+  flex: 1;
+}
+
+.target-label-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.target-label-main {
+  min-width: 0;
+}
+
+.target-label-main.is-truncated {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.target-label-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.target-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 5px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  font-size: 9px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  max-width: 84px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.target-tag--mix {
+  background: #e8f3ff;
+  border-color: #c8dcfb;
+  color: #1f4f85;
+}
+
+.target-tag--action {
+  background: #fff1e3;
+  border-color: #f5d8b4;
+  color: #8a4b12;
+}
+
+.target-tag--state {
+  background: #fdebec;
+  border-color: #f4c2c7;
+  color: #9d2d33;
+}
+
+.target-tag--neutral {
+  background: #e9edf5;
+  border-color: #d2dae8;
+  color: #3d4863;
+}
+
+.target-tag--count {
+  background: #edf0f6;
+  border-color: #d6ddea;
+  color: #495472;
+  max-width: 34px;
+  cursor: help;
 }
 
 .target-placeholder {
@@ -687,13 +764,36 @@ button:hover {
 
 .target-panel .target-label {
   white-space: normal;
+}
+
+.target-panel .target-label-content {
+  align-items: flex-start;
+  flex-wrap: wrap;
   overflow: visible;
-  text-overflow: clip;
+}
+
+.target-panel .target-label-main {
+  white-space: normal;
+}
+
+.target-panel .target-label-tags {
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.target-panel .target-tag {
+  max-width: none;
+  font-size: 10px;
+}
+
+.target-display .target-label-content {
+  flex-wrap: nowrap;
+  row-gap: 0;
 }
 
 .target-option {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   width: 100%;
   background: #f4f5fa;
@@ -1105,6 +1205,55 @@ body.osd-only .osd {
   min-width: 0;
   /* Allow text to wrap */
   word-break: break-word;
+}
+
+.osd-label-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.osd-label-main {
+  min-width: 0;
+}
+
+.osd-label-tags {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.osd-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  font-size: 10px;
+  line-height: 1.3;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.osd-tag--mix {
+  background: rgba(129, 183, 255, 0.22);
+  border-color: rgba(129, 183, 255, 0.45);
+  color: #d7e9ff;
+}
+
+.osd-tag--action {
+  background: rgba(255, 190, 110, 0.2);
+  border-color: rgba(255, 190, 110, 0.45);
+  color: #ffe4bf;
+}
+
+.osd-tag--neutral {
+  background: rgba(197, 207, 228, 0.22);
+  border-color: rgba(197, 207, 228, 0.45);
+  color: #edf2ff;
 }
 
 .osd-value {
