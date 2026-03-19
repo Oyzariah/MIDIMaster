@@ -129,6 +129,74 @@ pub fn update_app_settings(
 }
 
 #[tauri::command]
+pub fn set_theme_preference(state: State<AppState>, theme: String) -> Result<(), String> {
+    let normalized = match theme.as_str() {
+        "dark" => "dark".to_string(),
+        _ => "light".to_string(),
+    };
+
+    let mut settings = state
+        .app_settings
+        .lock()
+        .map_err(|_| "Lock poisoned".to_string())?;
+    settings.ui_theme = normalized;
+    let updated = settings.clone();
+    drop(settings);
+
+    state
+        .app_settings_store
+        .save(&updated)
+        .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_midi_device_preferences(
+    state: State<AppState>,
+    input_device_id: String,
+    output_device_id: String,
+    input_device_name: Option<String>,
+    output_device_name: Option<String>,
+) -> Result<(), String> {
+    let mut settings = state
+        .app_settings
+        .lock()
+        .map_err(|_| "Lock poisoned".to_string())?;
+    settings.midi_input_device_id = Some(input_device_id);
+    settings.midi_output_device_id = Some(output_device_id);
+    settings.midi_input_device_name = input_device_name;
+    settings.midi_output_device_name = output_device_name;
+    let updated = settings.clone();
+    drop(settings);
+
+    state
+        .app_settings_store
+        .save(&updated)
+        .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn clear_midi_device_preferences(state: State<AppState>) -> Result<(), String> {
+    let mut settings = state
+        .app_settings
+        .lock()
+        .map_err(|_| "Lock poisoned".to_string())?;
+    settings.midi_input_device_id = None;
+    settings.midi_output_device_id = None;
+    settings.midi_input_device_name = None;
+    settings.midi_output_device_name = None;
+    let updated = settings.clone();
+    drop(settings);
+
+    state
+        .app_settings_store
+        .save(&updated)
+        .map_err(|err| err.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
 pub fn reset_app_data(app: AppHandle, state: State<AppState>) -> Result<(), String> {
     state
         .profile_store

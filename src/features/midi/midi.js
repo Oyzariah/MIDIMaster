@@ -7,6 +7,9 @@ export function createMidiFeature({
   onConnected,
   onDisconnected,
   addBindingFromLearn,
+  getSavedMidiDeviceIds,
+  saveMidiDeviceIds,
+  clearSavedMidiDeviceIds,
 }) {
   if (typeof invoke !== "function") {
     throw new Error("createMidiFeature: invoke is required");
@@ -160,8 +163,11 @@ export function createMidiFeature({
     }
     try {
       await invoke("start_midi_device", { inputDeviceId: inputId, outputDeviceId: outputId });
-      localStorage.setItem("midiDeviceId", inputId);
-      localStorage.setItem("midiOutputDeviceId", outputId);
+      if (typeof saveMidiDeviceIds === "function") {
+        const inputName = d.midiSelect?.options?.[d.midiSelect.selectedIndex]?.textContent || "";
+        const outputName = d.midiOutputSelect?.options?.[d.midiOutputSelect.selectedIndex]?.textContent || "";
+        await saveMidiDeviceIds(inputId, outputId, inputName, outputName);
+      }
 
       const inputName = d.midiSelect?.options?.[d.midiSelect.selectedIndex]?.textContent;
       const outputName = d.midiOutputSelect?.options?.[d.midiOutputSelect.selectedIndex]?.textContent;
@@ -188,8 +194,9 @@ export function createMidiFeature({
     stopAutoRefresh();
     cancelLearnPanel();
     await invoke("stop_midi_device").catch(() => { });
-    localStorage.removeItem("midiDeviceId");
-    localStorage.removeItem("midiOutputDeviceId");
+    if (typeof clearSavedMidiDeviceIds === "function") {
+      await clearSavedMidiDeviceIds();
+    }
     if (typeof showSetup === "function") {
       showSetup("Not connected");
     }
@@ -240,8 +247,13 @@ export function createMidiFeature({
   }
 
   async function attemptAutoConnect(deviceData) {
-    const savedInputId = localStorage.getItem("midiDeviceId");
-    const savedOutputId = localStorage.getItem("midiOutputDeviceId");
+    const saved = (typeof getSavedMidiDeviceIds === "function")
+      ? getSavedMidiDeviceIds()
+      : {};
+    const savedInputId = saved?.inputId || "";
+    const savedOutputId = saved?.outputId || "";
+    const savedInputName = saved?.inputName || "";
+    const savedOutputName = saved?.outputName || "";
 
     if (!savedInputId) {
       if (typeof showSetup === "function") {
@@ -255,12 +267,24 @@ export function createMidiFeature({
 
     let inputMatch = inputs.find((device) => device.id === savedInputId);
     let outputMatch = savedOutputId ? outputs.find((device) => device.id === savedOutputId) : null;
+    if (!inputMatch && savedInputName) {
+      inputMatch = inputs.find((device) => device.name === savedInputName);
+    }
+    if (!outputMatch && savedOutputName) {
+      outputMatch = outputs.find((device) => device.name === savedOutputName);
+    }
 
     if (!inputMatch) {
       const refreshed = await refreshMidiDevices();
       inputMatch = refreshed.inputs.find((device) => device.id === savedInputId);
+      if (!inputMatch && savedInputName) {
+        inputMatch = refreshed.inputs.find((device) => device.name === savedInputName);
+      }
       if (savedOutputId) {
         outputMatch = refreshed.outputs.find((device) => device.id === savedOutputId);
+      }
+      if (!outputMatch && savedOutputName) {
+        outputMatch = refreshed.outputs.find((device) => device.name === savedOutputName);
       }
     }
 
@@ -285,15 +309,25 @@ export function createMidiFeature({
       return;
     }
 
+    const resolvedInputId = inputMatch?.id || savedInputId;
+    const resolvedOutputId = outputMatch?.id || savedOutputId;
     if (d.midiSelect) {
-      d.midiSelect.value = savedInputId;
+      d.midiSelect.value = resolvedInputId;
     }
     if (d.midiOutputSelect) {
-      d.midiOutputSelect.value = savedOutputId;
+      d.midiOutputSelect.value = resolvedOutputId;
     }
 
     try {
-      await invoke("start_midi_device", { inputDeviceId: savedInputId, outputDeviceId: savedOutputId });
+      await invoke("start_midi_device", { inputDeviceId: resolvedInputId, outputDeviceId: resolvedOutputId });
+      if (typeof saveMidiDeviceIds === "function") {
+        await saveMidiDeviceIds(
+          resolvedInputId,
+          resolvedOutputId,
+          inputMatch?.name || savedInputName,
+          outputMatch?.name || savedOutputName
+        );
+      }
       if (typeof showMain === "function") {
         showMain(inputMatch.name, outputMatch ? outputMatch.name : "Unknown");
       }
@@ -302,7 +336,7 @@ export function createMidiFeature({
       }
       startSessionRefresh(refreshSessions || (async () => { }), d.mainScreen);
       if (typeof onConnected === "function") {
-        onConnected({ inputId: savedInputId, outputId: savedOutputId, auto: true });
+        onConnected({ inputId: resolvedInputId, outputId: resolvedOutputId, auto: true });
       }
     } catch (error) {
       if (typeof showSetup === "function") {
