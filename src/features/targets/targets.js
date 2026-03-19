@@ -2,6 +2,10 @@ export function createTargetsFeature({
   dom,
   masterIconData,
   focusIconData,
+  mediaPlayPauseIconData,
+  mediaNextTrackIconData,
+  mediaPrevTrackIconData,
+  mediaStopIconData,
   getPluginHost,
   getSessions,
   getPlaybackDevices,
@@ -21,6 +25,13 @@ export function createTargetsFeature({
 
   let activeTargetPanelSelect = null;
   let activeTargetPanelBack = null;
+
+  function mediaIconForAction(action) {
+    if (action === "MediaNextTrack") return mediaNextTrackIconData;
+    if (action === "MediaPrevTrack") return mediaPrevTrackIconData;
+    if (action === "MediaStop") return mediaStopIconData;
+    return mediaPlayPauseIconData;
+  }
 
   function closeTargetMenus(except = null) {
     document.querySelectorAll(".target-dropdown.open").forEach((dropdown) => {
@@ -193,7 +204,7 @@ export function createTargetsFeature({
       options.push({
         value: "media-control",
         label: "Media Controls",
-        icon_data: null,
+        icon_data: mediaPlayPauseIconData,
         kind: "media-control",
       });
     }
@@ -381,7 +392,10 @@ export function createTargetsFeature({
         display.appendChild(label);
         return;
       }
-      const icon = createTargetIcon(option);
+      const displayOption = (option.kind === "media-control" && isBindingButton)
+        ? { ...option, icon_data: mediaIconForAction(action) }
+        : option;
+      const icon = createTargetIcon(displayOption);
       const label = document.createElement("span");
       label.className = "target-label";
 
@@ -492,10 +506,10 @@ export function createTargetsFeature({
             if (isBindingButton) {
               const actionOptions = targetOption.kind === "media-control"
                 ? [
-                  { label: "Media Play/Pause", value: "MediaPlayPause", kind: "action" },
-                  { label: "Media Next Track", value: "MediaNextTrack", kind: "action" },
-                  { label: "Media Previous Track", value: "MediaPrevTrack", kind: "action" },
-                  { label: "Media Stop", value: "MediaStop", kind: "action" },
+                  { label: "Media Play/Pause", value: "MediaPlayPause", kind: "action", icon_data: mediaPlayPauseIconData },
+                  { label: "Media Next Track", value: "MediaNextTrack", kind: "action", icon_data: mediaNextTrackIconData },
+                  { label: "Media Previous Track", value: "MediaPrevTrack", kind: "action", icon_data: mediaPrevTrackIconData },
+                  { label: "Media Stop", value: "MediaStop", kind: "action", icon_data: mediaStopIconData },
                 ]
                 : [
                   { label: "Toggle Mute", value: "ToggleMute", kind: "action" },
