@@ -40,6 +40,43 @@ fn parse_device_target(device_id: &str) -> (DeviceTargetKind, &str) {
     (DeviceTargetKind::Playback, device_id)
 }
 
+fn send_media_key(vk: u16) {
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
+        VIRTUAL_KEY,
+    };
+
+    let key_down = INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VIRTUAL_KEY(vk),
+                wScan: 0,
+                dwFlags: KEYBD_EVENT_FLAGS(0),
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+
+    let key_up = INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: VIRTUAL_KEY(vk),
+                wScan: 0,
+                dwFlags: KEYEVENTF_KEYUP,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
+
+    unsafe {
+        SendInput(&[key_down, key_up], std::mem::size_of::<INPUT>() as i32);
+    }
+}
+
 use profile_store::ProfileStore;
 use std::collections::HashMap;
 use std::path::Path;
@@ -287,6 +324,28 @@ impl AppState {
             None => return Ok(()),
         };
 
+        // Handle media key actions (fire-and-forget, no state tracking)
+        if matches!(
+            binding.action,
+            model::BindingAction::MediaPlayPause
+                | model::BindingAction::MediaNextTrack
+                | model::BindingAction::MediaPrevTrack
+                | model::BindingAction::MediaStop
+        ) {
+            if event.value == 0 {
+                return Ok(());
+            }
+            let vk: u16 = match binding.action {
+                model::BindingAction::MediaPlayPause => 0xB3,
+                model::BindingAction::MediaNextTrack => 0xB0,
+                model::BindingAction::MediaPrevTrack => 0xB1,
+                model::BindingAction::MediaStop => 0xB2,
+                _ => unreachable!(),
+            };
+            send_media_key(vk);
+            return Ok(());
+        }
+
         // Handle toggle mute action for button bindings
         if binding.action == model::BindingAction::ToggleMute {
             // Mark user activity to prevent stale feedback loop
@@ -514,7 +573,7 @@ impl AppState {
                 .audio
                 .set_device_volume(device_id, volume)
                 .map_err(|err| err.to_string())?,
-            model::BindingTarget::Unset => {
+            model::BindingTarget::Unset | model::BindingTarget::MediaControl => {
                 return Ok(());
             }
             model::BindingTarget::Integration {
@@ -602,6 +661,16 @@ impl AppState {
         };
 
         for binding in &profile.bindings {
+            if matches!(
+                binding.action,
+                model::BindingAction::MediaPlayPause
+                    | model::BindingAction::MediaNextTrack
+                    | model::BindingAction::MediaPrevTrack
+                    | model::BindingAction::MediaStop
+            ) {
+                continue;
+            }
+
             let value = if binding.action == model::BindingAction::ToggleMute {
                 match &binding.target {
                     model::BindingTarget::Master => sessions
@@ -657,6 +726,7 @@ impl AppState {
                         }
                     }
                     model::BindingTarget::Unset => None,
+                    model::BindingTarget::MediaControl => None,
                     model::BindingTarget::Integration { .. } => None,
                 }
             } else {
@@ -709,6 +779,7 @@ impl AppState {
                         }
                     }
                     model::BindingTarget::Unset => None,
+                    model::BindingTarget::MediaControl => None,
                     model::BindingTarget::Integration { .. } => None,
                 }
             };

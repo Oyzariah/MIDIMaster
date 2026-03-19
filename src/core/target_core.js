@@ -72,6 +72,9 @@ export function createTargetCore({
           icon_data: focusSession?.icon_data ?? focusIconData,
         };
       }
+      if (target === "MediaControl") {
+        return { label: "Media Controls", icon_data: null };
+      }
       if (target === "Unset") {
         return null;
       }
@@ -169,6 +172,7 @@ export function createTargetCore({
     if (!target) return null;
     if (target === "Master" || target.Master !== undefined) return "::master::";
     if (target === "Focus" || target.Focus !== undefined) return "::focus::";
+    if (target === "MediaControl") return "::media-control::";
 
     const integration = target.Integration || target.integration;
     if (integration && integration.integration_id) {
@@ -258,6 +262,9 @@ export function createTargetCore({
     if (target === "Focus" || target?.Focus != null) {
       return null;
     }
+    if (target === "MediaControl") {
+      return null;
+    }
 
     const targetType = target.type || target.kind || target.target;
     const appContainer = target.Application || target.application || (targetType === "Application" ? target : null);
@@ -316,6 +323,10 @@ export function createTargetCore({
       return null;
     }
 
+    if (target === "MediaControl") {
+      return null;
+    }
+
     const appContainer = target.Application || target.application;
     const appName = appContainer?.name ?? target.name;
     if (appName) {
@@ -365,6 +376,10 @@ export function createTargetCore({
     }
 
     if (target === "Focus" || target?.Focus != null) {
+      return false;
+    }
+
+    if (target === "MediaControl") {
       return false;
     }
 

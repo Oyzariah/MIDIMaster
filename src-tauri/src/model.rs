@@ -60,6 +60,10 @@ pub enum MidiMode {
 pub enum BindingAction {
     Volume,
     ToggleMute,
+    MediaPlayPause,
+    MediaNextTrack,
+    MediaPrevTrack,
+    MediaStop,
 }
 
 impl Default for BindingAction {
@@ -95,6 +99,7 @@ pub enum BindingTarget {
         #[serde(default)]
         data: serde_json::Value,
     },
+    MediaControl,
     Unset,
 }
 
@@ -119,6 +124,7 @@ fn binding_target_from_value(v: serde_json::Value) -> Result<BindingTarget, Stri
         return match s {
             "Master" => Ok(BindingTarget::Master),
             "Focus" => Ok(BindingTarget::Focus),
+            "MediaControl" => Ok(BindingTarget::MediaControl),
             "Unset" => Ok(BindingTarget::Unset),
             other => Err(format!("Unknown BindingTarget string: {}", other)),
         };
@@ -185,6 +191,7 @@ fn binding_target_from_value(v: serde_json::Value) -> Result<BindingTarget, Stri
             Ok(BindingTarget::Device { device_id })
         }
         "Unset" => Ok(BindingTarget::Unset),
+        "MediaControl" => Ok(BindingTarget::MediaControl),
 
         // New generic integration target
         "Integration" => {

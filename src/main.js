@@ -297,6 +297,10 @@ let activeProfileName = "";
 let targetMenuListenerBound = false;
 const masterIconData = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'><rect width='18' height='18' rx='4' fill='%232b2d42'/><path d='M5 4h2v10H5zM11 4h2v10h-2z' fill='white'/></svg>";
 const focusIconData = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'><rect width='18' height='18' rx='4' fill='%232b2d42'/><circle cx='9' cy='9' r='5.5' stroke='white' stroke-width='2' fill='none'/><circle cx='9' cy='9' r='1.5' fill='white'/></svg>";
+const mediaPlayPauseIconData = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'><rect width='18' height='18' rx='4' fill='%232b2d42'/><path d='M4.5 4.2l4.4 4.8-4.4 4.8z' fill='white'/><rect x='10.5' y='4.3' width='1.8' height='9.4' rx='.4' fill='white'/><rect x='13.1' y='4.3' width='1.8' height='9.4' rx='.4' fill='white'/></svg>";
+const mediaNextTrackIconData = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'><rect width='18' height='18' rx='4' fill='%232b2d42'/><path d='M4 4l5 5-5 5zM9 4l5 5-5 5z' fill='white'/><rect x='14' y='4' width='1.5' height='10' fill='white'/></svg>";
+const mediaPrevTrackIconData = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'><rect width='18' height='18' rx='4' fill='%232b2d42'/><path d='M14 4L9 9l5 5zM9 4L4 9l5 5z' fill='white'/><rect x='2.5' y='4' width='1.5' height='10' fill='white'/></svg>";
+const mediaStopIconData = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'><rect width='18' height='18' rx='4' fill='%232b2d42'/><rect x='5' y='5' width='8' height='8' rx='1.2' fill='white'/></svg>";
 const osdDebugAlways = false;
 const isOsdWindow = new URLSearchParams(window.location.search).has("osd");
 
@@ -561,6 +565,10 @@ targetsFeature = createTargetsFeature({
   },
   masterIconData,
   focusIconData,
+  mediaPlayPauseIconData,
+  mediaNextTrackIconData,
+  mediaPrevTrackIconData,
+  mediaStopIconData,
   getPluginHost: () => pluginHost,
   getSessions: () => sessions,
   getPlaybackDevices: () => playbackDevices,
@@ -1040,8 +1048,8 @@ if (resetAppDataButton) {
   });
 }
 
-function buildTargetOptions(currentTarget) {
-  return targetsFeature?.buildTargetOptions?.(currentTarget);
+function buildTargetOptions(currentTarget, isButton = false) {
+  return targetsFeature?.buildTargetOptions?.(currentTarget, isButton);
 }
 
 function buildTargetSelect(currentTarget, isBindingButton = false, currentAction = "Volume") {
