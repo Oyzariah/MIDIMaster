@@ -25,10 +25,14 @@ jobs:
           $tag = "${env:GITHUB_REF_NAME}"
           if (-not $tag.StartsWith("v")) { throw "Expected tag to start with 'v' (got '$tag')" }
           $expected = $tag.Substring(1)
-          $conf = Get-Content -Raw "src-tauri/tauri.conf.json" | ConvertFrom-Json
-          $actual = "$($conf.version)"
+          $cargoToml = Get-Content -Raw "src-tauri/Cargo.toml"
+          $match = [regex]::Match($cargoToml, '(?m)^\s*version\s*=\s*"([^"]+)"\s*$')
+          if (-not $match.Success) {
+            throw "Could not parse package version from src-tauri/Cargo.toml."
+          }
+          $actual = $match.Groups[1].Value
           if ($actual -ne $expected) {
-            throw "Tag version ($expected) does not match src-tauri/tauri.conf.json version ($actual)."
+            throw "Tag version ($expected) does not match src-tauri/Cargo.toml version ($actual)."
           }
 
       - name: Install Tauri CLI
