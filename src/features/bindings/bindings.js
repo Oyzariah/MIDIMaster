@@ -161,7 +161,7 @@ export function createBindingsFeature({
       if (vol !== null && Math.abs(Number(slider.value) - vol) > 0.01) {
         slider.value = vol;
         updateSliderFill(slider);
-        invoke("update_midi_feedback", { target, value: vol });
+        invoke("update_midi_feedback", { target, value: vol, action: "Volume" });
       }
     });
 
@@ -179,8 +179,6 @@ export function createBindingsFeature({
       if (muted !== currentlyMuted) {
         btn.innerHTML = muted ? "\ud83d\udd07" : "\ud83d\udd0a";
         btn.classList.toggle("muted", muted);
-        const val = muted ? 1.0 : 0.0;
-        invoke("update_midi_feedback", { target, value: val });
       }
     });
   }
@@ -554,11 +552,6 @@ export function createBindingsFeature({
               showMutOsd(getPrimaryTarget(binding), newMuted);
               muteButton.innerHTML = newMuted ? "\ud83d\udd07" : "\ud83d\udd0a";
               muteButton.classList.toggle("muted", newMuted);
-              for (const target of getTargets(binding)) {
-                if (!extractInteg(target)) {
-                  invoke("update_midi_feedback", { target, value: newMuted ? 1.0 : 0.0, action: "ToggleMute" });
-                }
-              }
             }
           } catch (err) {
             console.error("Failed to toggle mute:", err);

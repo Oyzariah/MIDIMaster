@@ -141,6 +141,8 @@ struct AppState {
     active_profile: Mutex<Option<Profile>>,
     binding_state: Arc<Mutex<HashMap<BindingKey, BindingState>>>,
     feedback_values: Arc<Mutex<HashMap<BindingKey, f32>>>,
+    mute_transition_until: Mutex<HashMap<BindingKey, Instant>>,
+    last_target_mute_state: Mutex<HashMap<BindingKey, bool>>,
     learn_pending: Mutex<bool>,
     learn_candidate: Mutex<Option<LearnCandidate>>,
     learned_control: Mutex<Option<LearnedControl>>,
@@ -818,8 +820,18 @@ impl AppState {
             Ok(feedback) => feedback,
             Err(_) => return,
         };
+        let mut mute_transition_until = match self.mute_transition_until.lock() {
+            Ok(map) => map,
+            Err(_) => return,
+        };
+        let mut last_target_mute_state = match self.last_target_mute_state.lock() {
+            Ok(map) => map,
+            Err(_) => return,
+        };
+        let now = Instant::now();
 
         for binding in &profile.bindings {
+            let key = BindingKey::from_binding(binding);
             let primary_target = binding.primary_target();
             if matches!(
                 binding.action,
@@ -831,6 +843,7 @@ impl AppState {
                 continue;
             }
 
+            let mut current_target_muted: Option<bool> = None;
             let value = if binding.action == model::BindingAction::ToggleMute {
                 match &primary_target {
                     model::BindingTarget::Master => sessions
@@ -894,12 +907,18 @@ impl AppState {
                     model::BindingTarget::Master => sessions
                         .iter()
                         .find(|session| session.is_master)
-                        .map(|session| session.volume),
+                        .map(|session| {
+                            current_target_muted = Some(session.is_muted);
+                            session.volume
+                        }),
                     model::BindingTarget::Focus => None,
                     model::BindingTarget::Session { session_id } => sessions
                         .iter()
                         .find(|session| session.id == *session_id)
-                        .map(|session| session.volume),
+                        .map(|session| {
+                            current_target_muted = Some(session.is_muted);
+                            session.volume
+                        }),
                     model::BindingTarget::Application { name } => {
                         let target = name.to_lowercase();
                         sessions
@@ -923,7 +942,10 @@ impl AppState {
                                 }
                                 session.display_name.to_lowercase() == target
                             })
-                            .map(|session| session.volume)
+                            .map(|session| {
+                                current_target_muted = Some(session.is_muted);
+                                session.volume
+                            })
                     }
                     model::BindingTarget::Device { device_id } => {
                         let (kind, raw_id) = parse_device_target(device_id);
@@ -931,11 +953,17 @@ impl AppState {
                             DeviceTargetKind::Playback => playback_devices
                                 .iter()
                                 .find(|device| device.id == raw_id)
-                                .map(|device| device.volume),
+                                .map(|device| {
+                                    current_target_muted = Some(device.is_muted);
+                                    device.volume
+                                }),
                             DeviceTargetKind::Recording => recording_devices
                                 .iter()
                                 .find(|device| device.id == raw_id)
-                                .map(|device| device.volume),
+                                .map(|device| {
+                                    current_target_muted = Some(device.is_muted);
+                                    device.volume
+                                }),
                         }
                     }
                     model::BindingTarget::Unset => None,
@@ -944,8 +972,30 @@ impl AppState {
                 }
             };
 
-            if let Some(val) = value {
-                feedback.insert(BindingKey::from_binding(binding), val);
+            if let Some(mut val) = value {
+                if binding.action != model::BindingAction::ToggleMute {
+                    if let Some(muted) = current_target_muted {
+                        if let Some(previous_muted) = last_target_mute_state.get(&key).cloned() {
+                            if previous_muted != muted {
+                                mute_transition_until
+                                    .insert(key.clone(), now + Duration::from_millis(700));
+                            }
+                        }
+                        last_target_mute_state.insert(key.clone(), muted);
+                    }
+
+                    if let Some(until) = mute_transition_until.get(&key).cloned() {
+                        if now < until {
+                            if let Some(previous_val) = feedback.get(&key).cloned() {
+                                val = previous_val;
+                            }
+                        } else {
+                            mute_transition_until.remove(&key);
+                        }
+                    }
+                }
+
+                feedback.insert(key, val);
             }
         }
     }
@@ -1082,6 +1132,8 @@ fn main() {
                 active_profile: Mutex::new(None),
                 binding_state: Arc::new(Mutex::new(HashMap::new())),
                 feedback_values: Arc::new(Mutex::new(HashMap::new())),
+                mute_transition_until: Mutex::new(HashMap::new()),
+                last_target_mute_state: Mutex::new(HashMap::new()),
                 learn_pending: Mutex::new(false),
                 learn_candidate: Mutex::new(None),
                 learned_control: Mutex::new(None),

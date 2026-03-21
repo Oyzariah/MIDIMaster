@@ -8,6 +8,7 @@ pub struct BindingKey {
     pub device_id: String,
     pub channel: u8,
     pub controller: u8,
+    pub msg_type: crate::model::MidiMessageType,
 }
 
 #[derive(Debug, Clone)]
@@ -22,6 +23,7 @@ impl BindingKey {
             device_id: event.device_id.clone(),
             channel: event.channel,
             controller: event.controller,
+            msg_type: event.msg_type.clone(),
         }
     }
 
@@ -30,6 +32,7 @@ impl BindingKey {
             device_id: binding.device_id.clone(),
             channel: binding.control.channel,
             controller: binding.control.controller,
+            msg_type: binding.control.msg_type.clone(),
         }
     }
 }
@@ -47,7 +50,9 @@ pub fn find_binding<'a>(profile: &'a Profile, key: &BindingKey) -> Option<&'a Bi
     // If exactly one binding matches channel+controller, use it.
     // This keeps older bindings functional after device index changes.
     let mut fallback = profile.bindings.iter().filter(|binding| {
-        binding.control.channel == key.channel && binding.control.controller == key.controller
+        binding.control.channel == key.channel
+            && binding.control.controller == key.controller
+            && binding.control.msg_type == key.msg_type
     });
 
     let first = fallback.next()?;

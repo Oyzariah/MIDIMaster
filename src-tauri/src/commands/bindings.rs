@@ -177,67 +177,77 @@ pub fn set_binding_feedback(
         None => return Ok(()),
     };
     let primary_target = binding.primary_target();
+    let effective_action = action.clone().unwrap_or_else(|| binding.action.clone());
+    let action_matches_binding = action.is_none() || effective_action == binding.action;
 
     let key = BindingKey::from_binding(binding);
 
     let silent = silent.unwrap_or(false);
 
-    // Prevent fighting the user while they're moving a control.
-    // For motor faders, sending feedback while the user is actively moving causes jitter.
-    // We still want to update internal state + UI/OSD for user-driven changes.
-    let is_note = matches!(binding.control.msg_type, model::MidiMessageType::Note);
     let mut user_active = false;
-    if !is_note {
-        if let Ok(states) = state.binding_state.lock() {
-            if let Some(st) = states.get(&key) {
-                user_active = st.last_update.elapsed().as_millis() < 500;
+    if action_matches_binding {
+        // Prevent fighting the user while they're moving a control.
+        // For motor faders, sending feedback while the user is actively moving causes jitter.
+        // We still want to update internal state + UI/OSD for user-driven changes.
+        let is_note = matches!(binding.control.msg_type, model::MidiMessageType::Note);
+        if !is_note {
+            if let Ok(states) = state.binding_state.lock() {
+                if let Some(st) = states.get(&key) {
+                    user_active = st.last_update.elapsed().as_millis() < 500;
+                }
             }
         }
-    }
 
-    // Ignore background (silent) sync updates while the user is actively moving.
-    // Otherwise a slightly delayed poll/notification can overwrite the latched value and
-    // make the motor snap or jitter.
-    if user_active && silent {
-        return Ok(());
-    }
+        // Ignore background (silent) sync updates while the user is actively moving.
+        // Otherwise a slightly delayed poll/notification can overwrite the latched value and
+        // make the motor snap or jitter.
+        if user_active && silent {
+            return Ok(());
+        }
 
-    // Update current value to avoid unnecessary updates.
-    let mut skip = false;
-    if let Ok(mut feedback) = state.feedback_values.lock() {
-        if let Some(current) = feedback.get(&key) {
-            if (current - value).abs() < 0.005 {
-                skip = true;
+        // Update current value to avoid unnecessary updates.
+        let mut skip = false;
+        if let Ok(mut feedback) = state.feedback_values.lock() {
+            if let Some(current) = feedback.get(&key) {
+                if (current - value).abs() < 0.005 {
+                    skip = true;
+                }
+            }
+            if !skip {
+                feedback.insert(key.clone(), value);
             }
         }
-        if !skip {
-            feedback.insert(key.clone(), value);
+        if skip {
+            return Ok(());
         }
-    }
-    if skip {
-        return Ok(());
+
+        // Send MIDI feedback to hardware.
+        // Suppress during active user movement to avoid motor jitter.
+        if !user_active {
+            if let Ok(mut midi) = state.midi.lock() {
+                let _ = midi.send_feedback(
+                    &binding.device_id,
+                    binding.control.channel,
+                    binding.control.controller,
+                    value,
+                    binding.control.msg_type.clone(),
+                );
+            }
+        }
+    } else {
+        eprintln!(
+            "set_binding_feedback: suppressed hardware feedback for binding {} (binding action: {:?}, requested: {:?})",
+            binding.id,
+            binding.action,
+            effective_action
+        );
     }
 
     if let Ok(mut last_update) = state.osd_last_update.lock() {
         *last_update = Some(Instant::now());
     }
 
-    // Send MIDI feedback to hardware.
-    // Suppress during active user movement to avoid motor jitter.
-    if !user_active {
-        if let Ok(mut midi) = state.midi.lock() {
-            let _ = midi.send_feedback(
-                &binding.device_id,
-                binding.control.channel,
-                binding.control.controller,
-                value,
-                binding.control.msg_type.clone(),
-            );
-        }
-    }
-
     // Emit UI/OSD updates.
-    let effective_action = action.unwrap_or_else(|| binding.action.clone());
     let settings_enabled = state
         .osd_settings
         .lock()
