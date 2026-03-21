@@ -261,10 +261,7 @@ const profileToggle = document.getElementById("profile-toggle");
 const profileCurrent = document.getElementById("profile-current");
 const profileList = document.getElementById("profile-list");
 const bindingsContainer = document.getElementById("bindings");
-const setupScreen = document.getElementById("setup-screen");
 const mainScreen = document.getElementById("main-screen");
-const connectedDevice = document.getElementById("connected-device");
-const connectedOutputDevice = document.getElementById("connected-output-device");
 const targetPanel = document.getElementById("target-panel");
 const targetPanelList = document.getElementById("target-panel-list");
 const targetPanelTitle = document.getElementById("target-panel-title");
@@ -580,49 +577,11 @@ if (isOsdWindow) {
   applyTheme(loadStoredTheme());
 }
 
-function showSetup(statusText) {
-  setupScreen.classList.remove("hidden");
-  mainScreen.classList.add("hidden");
-  connectedDevice.textContent = "Not connected";
-  connectedOutputDevice.textContent = "Not connected";
-  midiFeature?.stopSessionRefresh?.();
-  if (statusText) {
-    midiStatus.textContent = statusText;
-  }
-}
-
-function renderConnectedDeviceStatus(element, prefix, value) {
-  if (!element) return;
-  const raw = String(value || "").trim();
-  if (!raw) {
-    element.textContent = `${prefix}: Connected`;
-    return;
-  }
-
-  const unavailableSuffix = " (Unavailable)";
-  if (!raw.endsWith(unavailableSuffix)) {
-    element.textContent = `${prefix}: ${raw}`;
-    return;
-  }
-
-  const baseName = raw.slice(0, -unavailableSuffix.length).trim() || raw;
-  element.textContent = "";
-
-  const label = document.createElement("span");
-  label.textContent = `${prefix}: ${baseName} `;
-  element.appendChild(label);
-
-  const badge = document.createElement("span");
-  badge.className = "connected-device-badge connected-device-badge--unavailable";
-  badge.textContent = "Unavailable";
-  element.appendChild(badge);
-}
-
 function showMain(inputName, outputName) {
-  setupScreen.classList.add("hidden");
-  mainScreen.classList.remove("hidden");
-  renderConnectedDeviceStatus(connectedDevice, "Input", inputName || "Connected");
-  renderConnectedDeviceStatus(connectedOutputDevice, "Output", outputName || "Connected");
+  mainScreen?.classList?.remove?.("hidden");
+  const input = String(inputName || "").trim() || "Not selected";
+  const output = String(outputName || "").trim() || "Not selected";
+  midiStatus.textContent = `Input: ${input} | Output: ${output}`;
 }
 
 function startSessionRefresh() {
@@ -914,12 +873,9 @@ midiFeature = createMidiFeature({
     learnPanelMessage,
     learnPanelClose,
     refreshMidiButton: document.getElementById("refresh-midi"),
-    connectMidiButton: document.getElementById("connect-midi"),
-    disconnectMidiButton: document.getElementById("disconnect-midi"),
     learnBindingButton: document.getElementById("learn-binding"),
     bindingAddFooterButton: document.getElementById("binding-add-footer-button"),
   },
-  showSetup,
   showMain,
   refreshSessions,
   addBindingFromLearn: async (learned) => {
@@ -1602,11 +1558,8 @@ async function startMainApp() {
   }
   appStarted = true;
   const savedDevice = getSavedMidiDeviceIds().inputId;
-  if (savedDevice) {
-    setupScreen.classList.add("hidden");
-    mainScreen.classList.add("hidden");
-  } else {
-    showSetup("Searching for devices...");
+  if (!savedDevice && midiStatus) {
+    midiStatus.textContent = "Select input and output MIDI devices.";
   }
   const deviceData = await loadMidiDevices();
   
@@ -1660,8 +1613,8 @@ async function startMainApp() {
     await attemptAutoConnect(deviceData);
   }
 
-  if (usedLegacyFallback && savedDevice && mainScreen.classList.contains("hidden")) {
-    showSetup("Select MIDI devices to connect.");
+  if (usedLegacyFallback && savedDevice && midiStatus) {
+    midiStatus.textContent = "Select available input/output devices to reconnect.";
   }
 }
 
@@ -1688,8 +1641,7 @@ async function init() {
 
   await loadAppSettings();
   await hydrateClientPreferences();
-  setupScreen.classList.add("hidden");
-  mainScreen.classList.add("hidden");
+  mainScreen?.classList?.remove?.("hidden");
   await startMainApp();
 }
 

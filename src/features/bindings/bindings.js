@@ -364,8 +364,14 @@ export function createBindingsFeature({
             const primaryTarget = getPrimaryTarget(binding);
             const newVolume = getVol(primaryTarget);
             if (volumeSlider) {
-              volumeSlider.value = newVolume;
-              updateSliderFill(volumeSlider);
+              // Keep current slider position if the new primary target cannot report
+              // a concrete volume (common for some integration targets).
+              // This prevents motorized faders from jumping when removing targets.
+              if (typeof newVolume === "number" && Number.isFinite(newVolume)) {
+                volumeSlider.value = newVolume;
+                bindingLastValues[binding.id] = newVolume;
+                updateSliderFill(volumeSlider);
+              }
               volumeSlider.dataset.targetJson = JSON.stringify(primaryTarget);
             }
 

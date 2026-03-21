@@ -100,7 +100,18 @@ export function renderLabelFromRawWithTags(
 
   const { base, tags } = parseLabelParts(rawLabel);
   const normalizedExtraTags = Array.isArray(extraTags)
-    ? extraTags.filter(Boolean).map((t) => String(t).trim()).filter(Boolean)
+    ? extraTags
+        .filter(Boolean)
+        .map((t) => {
+          if (typeof t === "string" || typeof t === "number") {
+            return String(t).trim();
+          }
+          if (t && typeof t === "object") {
+            return String(t.text ?? t.label ?? "").trim();
+          }
+          return "";
+        })
+        .filter(Boolean)
     : [];
   const allTags = [...tags, ...normalizedExtraTags];
 

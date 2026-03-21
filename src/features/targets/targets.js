@@ -347,7 +347,7 @@ export function createTargetsFeature({
 
   function buildTargetSelect(currentTarget, isBindingButton = false, currentAction = "Volume") {
     const container = document.createElement("div");
-    container.className = "target-dropdown";
+    container.className = "target-dropdown binding-target-dropdown";
 
     const button = document.createElement("button");
     button.type = "button";
@@ -428,10 +428,13 @@ export function createTargetsFeature({
 
       const label = document.createElement("span");
       label.className = "target-chip-label";
+      const actionTags = (isBindingButton && selectedAction)
+        ? [actionLabel(selectedAction)]
+        : [];
       renderLabelFromRawWithTags(label, {
         rawLabel: displayOption.label,
-        extraTags: [],
-        truncateMain: true,
+        extraTags: actionTags,
+        truncateMain: !isBindingButton,
       });
       chip.appendChild(label);
 
@@ -465,6 +468,9 @@ export function createTargetsFeature({
       }
       const chipsWrap = document.createElement("span");
       chipsWrap.className = "target-chips-wrap";
+      if (selectedTargets.length > 1) {
+        chipsWrap.classList.add("is-scrollable");
+      }
       selectedTargets.forEach((target, index) => {
         chipsWrap.appendChild(renderChip(target, index));
       });

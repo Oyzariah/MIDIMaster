@@ -160,15 +160,24 @@ body.dark-mode .bindings-empty {
   background: #172034;
 }
 
-body.dark-mode .target-option:hover,
-body.dark-mode .target-option.selected {
-  background: #2a3551;
-}
-
 body.dark-mode .target-option {
-  background: #26314a;
+  background: #1f2941;
   color: #e8eefc;
   border-color: #3b4b6f;
+}
+
+body.dark-mode .target-option:hover {
+  background: #2a3654;
+}
+
+body.dark-mode .target-option.selected {
+  background: #3a4a72;
+  border-color: #6f88c0;
+}
+
+body.dark-mode .target-option.selected:hover {
+  background: #465987;
+  border-color: #86a0dd;
 }
 
 body.dark-mode .target-divider {
@@ -240,13 +249,14 @@ body.dark-mode .binding-add-button:hover {
 }
 
 body.dark-mode .profile-select .select-button {
-  background: #151d2e;
-  border-color: #4a5f8a;
-  box-shadow: inset 0 1px 0 rgba(201, 213, 242, 0.08);
+  background: #1c2437;
+  border-color: #3b4b6f;
+  color: #e8eefc;
+  box-shadow: none;
 }
 
 body.dark-mode .profile-select .select-button:hover {
-  background: #1f2a42;
+  background: #2a3551;
 }
 
 body.dark-mode .profile-select .dropdown {
@@ -549,6 +559,27 @@ main {
   margin-bottom: 0;
 }
 
+.device-picker-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.device-picker-grid .form-group {
+  min-width: 0;
+}
+
+.device-picker-grid .form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.device-picker-grid .form-group select {
+  width: 100%;
+}
+
 .main-top .row {
   margin-bottom: 4px;
 }
@@ -564,10 +595,6 @@ main {
   width: 100%;
   flex: 1;
   min-height: 0;
-}
-
-#main-screen.hidden {
-  display: none;
 }
 
 .bindings-card {
@@ -612,6 +639,7 @@ main {
 .profile-row {
   margin-bottom: 0;
   width: 100%;
+  margin-top: 30px;
 }
 
 .main-top h2 {
@@ -663,7 +691,7 @@ button:hover {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   scrollbar-gutter: stable;
   padding-right: 6px;
   align-content: start;
@@ -679,6 +707,17 @@ button:hover {
   flex: 1;
   /* Ensure content doesn't squish and overlap */
 }
+
+.binding-row .target-button {
+  min-height: 44px;
+  height: 44px;
+}
+
+.binding-row .target-display {
+  min-height: 20px;
+  overflow: hidden;
+}
+
 
 
 .list-item {
@@ -743,15 +782,25 @@ button:hover {
   gap: 8px;
   min-width: 0;
   flex: 1;
-  overflow-x: auto;
+  overflow-x: hidden;
   scrollbar-width: thin;
 }
 
 .target-chips-wrap {
-  display: inline-flex;
+  display: flex;
   gap: 6px;
   align-items: center;
   min-width: 0;
+  width: 100%;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  white-space: nowrap;
+}
+
+.target-chips-wrap.is-scrollable {
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 
 .target-chip {
@@ -773,6 +822,7 @@ button:hover {
 
 .target-chip-label {
   min-width: 0;
+  max-width: 100%;
 }
 
 .target-chip .target-label-content {
@@ -781,6 +831,9 @@ button:hover {
 
 .target-chip .target-label-main {
   font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .target-chip-remove {
@@ -1111,6 +1164,11 @@ body.dark-mode .target-chip-remove:hover {
   max-width: 340px;
 }
 
+.settings-select-dropdown {
+  width: 100%;
+  max-width: 340px;
+}
+
 .settings-title {
   font-weight: 600;
   color: #2b2d42;
@@ -1165,6 +1223,18 @@ body.dark-mode .target-chip-remove:hover {
   background: #2b2d42;
   border-color: #2b2d42;
   box-shadow: 0 0 0 4px rgba(43, 45, 66, 0.18);
+}
+
+body.dark-mode .osd-position-dot {
+  background: #2a3551;
+  border-color: #6177aa;
+  box-shadow: 0 2px 6px rgba(8, 12, 22, 0.45);
+}
+
+body.dark-mode .osd-position-dot.selected {
+  background: #f3f7ff;
+  border-color: #d6e3ff;
+  box-shadow: 0 0 0 4px rgba(164, 191, 248, 0.25);
 }
 
 .osd-position-dot[data-anchor="top-left"] {
@@ -1516,6 +1586,24 @@ body.dragging-binding {
   width: 100%;
 }
 
+.profile-select .select-button {
+  background: #fff;
+  color: #2b2d42;
+  border: 1px solid #ccd1e0;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
+.profile-select .select-button:hover {
+  background: #f4f5fa;
+}
+
+.midi-device-dropdown .target-button {
+  height: 38px;
+  min-height: 38px;
+}
+
 .dropdown {
   position: absolute;
   top: calc(100% + 6px);
@@ -1856,6 +1944,10 @@ body.dark-mode .binding-row input.binding-volume-slider::-webkit-slider-thumb {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+body.dark-mode .device-picker-grid .form-group label {
+  color: #c9d3ed;
 }
 
 .connected-device-badge {

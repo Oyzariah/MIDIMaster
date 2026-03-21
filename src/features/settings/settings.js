@@ -22,6 +22,8 @@ export function createSettingsFeature({
   let monitorMenuEl = null;
   let monitorDisplayEl = null;
   let monitorDocClickBound = false;
+  let settingsDocClickBound = false;
+  const settingsSelectDropdowns = new Map();
 
   function closeSettingsPanel() {
     if (!d.settingsPanel) return;
@@ -49,6 +51,7 @@ export function createSettingsFeature({
 
     if (d.osdEnabledToggle) {
       d.osdEnabledToggle.value = merged.enabled ? "enabled" : "disabled";
+      renderSettingsSelectDropdown(d.osdEnabledToggle);
     }
     if (d.osdMonitorSelect) {
       d.osdMonitorSelect.value = String(merged.monitorIndex ?? 0);
@@ -102,6 +105,115 @@ export function createSettingsFeature({
   function closeMonitorDropdown() {
     if (!monitorDropdownEl) return;
     closeOpenDropdowns({ except: null });
+  }
+
+  function ensureSettingsSelectDropdown(selectEl, { title = "Select" } = {}) {
+    if (!selectEl) return null;
+
+    const existing = settingsSelectDropdowns.get(selectEl);
+    if (existing && existing.root?.isConnected) return existing;
+
+    selectEl.classList.add("hidden");
+
+    const root = document.createElement("div");
+    root.className = "target-dropdown settings-select-dropdown";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "target-button";
+    button.title = title;
+
+    const display = document.createElement("span");
+    display.className = "target-display";
+
+    const caret = document.createElement("span");
+    caret.className = "caret";
+    caret.textContent = "\u25be";
+
+    button.appendChild(display);
+    button.appendChild(caret);
+
+    const menu = document.createElement("div");
+    menu.className = "target-menu hidden";
+
+    wireDropdownToggle({ root, menu, trigger: button });
+
+    root.appendChild(button);
+    root.appendChild(menu);
+    selectEl.insertAdjacentElement("afterend", root);
+
+    const entry = { root, menu, display };
+    settingsSelectDropdowns.set(selectEl, entry);
+
+    if (!settingsDocClickBound) {
+      settingsDocClickBound = true;
+      document.addEventListener("click", (event) => {
+        const clickedInsideMonitor = Boolean(monitorDropdownEl && monitorDropdownEl.contains(event.target));
+        if (clickedInsideMonitor) return;
+        const clickedInsideAnySettingsDropdown = Array.from(settingsSelectDropdowns.values())
+          .some((item) => item.root && item.root.contains(event.target));
+        if (clickedInsideAnySettingsDropdown) return;
+        closeOpenDropdowns({ except: null });
+      });
+    }
+
+    return entry;
+  }
+
+  function renderSettingsSelectDropdown(selectEl) {
+    if (!selectEl) return;
+    const entry = ensureSettingsSelectDropdown(selectEl, { title: selectEl.title || selectEl.id || "Select" });
+    if (!entry || !entry.menu || !entry.display) return;
+
+    const options = Array.from(selectEl.options || []).filter((opt) => String(opt.value || "").trim());
+    const currentValue = String(selectEl.value || "");
+    entry.menu.innerHTML = "";
+
+    let activeOption = options.find((opt) => opt.value === currentValue) || null;
+
+    options.forEach((opt) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "target-option";
+      if (opt.value === currentValue) item.classList.add("selected");
+
+      const textWrap = document.createElement("span");
+      textWrap.className = "target-label";
+      renderLabelWithBadges(textWrap, {
+        text: opt.textContent || "",
+        badges: [],
+        truncate: false,
+      });
+      item.appendChild(textWrap);
+
+      item.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        selectEl.value = opt.value;
+        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+        closeOpenDropdowns({ except: null });
+      });
+
+      entry.menu.appendChild(item);
+    });
+
+    if (!activeOption && options.length > 0) {
+      activeOption = options[0];
+    }
+
+    renderLabelWithBadges(entry.display, {
+      text: activeOption?.textContent || "Select",
+      badges: [],
+      truncate: true,
+    });
+  }
+
+  function renderAllSettingsSelectDropdowns() {
+    renderSettingsSelectDropdown(d.osdEnabledToggle);
+    renderSettingsSelectDropdown(d.startWithWindowsSelect);
+    renderSettingsSelectDropdown(d.startInTraySelect);
+    renderSettingsSelectDropdown(d.minimizeToTraySelect);
+    renderSettingsSelectDropdown(d.exitToTraySelect);
   }
 
   function renderMonitorDisplay(option) {
@@ -258,15 +370,19 @@ export function createSettingsFeature({
     }
     if (d.startWithWindowsSelect) {
       d.startWithWindowsSelect.value = merged.startWithWindows ? "enabled" : "disabled";
+      renderSettingsSelectDropdown(d.startWithWindowsSelect);
     }
     if (d.startInTraySelect) {
       d.startInTraySelect.value = merged.startInTray ? "enabled" : "disabled";
+      renderSettingsSelectDropdown(d.startInTraySelect);
     }
     if (d.minimizeToTraySelect) {
       d.minimizeToTraySelect.value = merged.minimizeToTray ? "enabled" : "disabled";
+      renderSettingsSelectDropdown(d.minimizeToTraySelect);
     }
     if (d.exitToTraySelect) {
       d.exitToTraySelect.value = merged.exitToTray ? "enabled" : "disabled";
+      renderSettingsSelectDropdown(d.exitToTraySelect);
     }
   }
 
@@ -319,6 +435,7 @@ export function createSettingsFeature({
         await loadMonitorOptions();
         await loadAppSettings();
         syncAppSettingsUI((typeof getAppSettings === "function") ? (getAppSettings() || {}) : {});
+        renderAllSettingsSelectDropdowns();
         openSettingsPanel();
       });
     }
@@ -374,6 +491,8 @@ export function createSettingsFeature({
         persistAppSettings();
       });
     }
+
+    renderAllSettingsSelectDropdowns();
   }
 
   return {

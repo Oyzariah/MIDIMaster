@@ -46,41 +46,21 @@
       </div>
     </div>
 
-    <section id="setup-screen" class="card">
-      <h2>Setup</h2>
-      <p>Select MIDI devices to connect.</p>
-
-      <div class="setup-form">
-        <div class="form-group">
-          <label for="midi-device">Input Device</label>
-          <select id="midi-device" title="Input Device"></select>
-        </div>
-
-        <div class="form-group">
-          <label for="midi-output-device">Output Device</label>
-          <select id="midi-output-device" title="Output Device"></select>
-        </div>
-
-        <div class="form-actions">
-          <button id="refresh-midi" class="secondary-button">Refresh</button>
-          <button id="connect-midi" class="primary-button">Connect</button>
-        </div>
-      </div>
-
-      <div id="midi-status" class="status">Not connected</div>
-    </section>
-
-    <section id="main-screen" class="hidden">
+    <section id="main-screen">
       <div class="main-top">
         <div class="card">
           <h2>Connected Devices</h2>
-          <div class="row device-row">
-            <div class="device-status-container">
-              <div id="connected-device" class="status">Input: Not connected</div>
-              <div id="connected-output-device" class="status">Output: Not connected</div>
+          <div class="device-picker-grid">
+            <div class="form-group">
+              <label for="midi-device">Input Device</label>
+              <select id="midi-device" title="Input Device"></select>
             </div>
-            <button id="disconnect-midi">Change Devices</button>
+            <div class="form-group">
+              <label for="midi-output-device">Output Device</label>
+              <select id="midi-output-device" title="Output Device"></select>
+            </div>
           </div>
+          <div id="midi-status" class="status hidden">Select input and output devices</div>
         </div>
 
         <div class="card">

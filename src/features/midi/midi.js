@@ -1,7 +1,12 @@
+import {
+  closeOpenDropdowns,
+  renderLabelWithBadges,
+  wireDropdownToggle,
+} from "../ui/dropdown_badges.js";
+
 export function createMidiFeature({
   invoke,
   dom,
-  showSetup,
   showMain,
   refreshSessions,
   onConnected,
@@ -23,11 +28,20 @@ export function createMidiFeature({
   let availabilityTimer = null;
   let availabilityCheckInFlight = false;
   let suspendProfileAutoReconnect = false;
+  let applyInFlight = false;
+  let queuedApply = null;
   let connectedInputId = "";
   let connectedOutputId = "";
   let connectedInputName = "";
   let connectedOutputName = "";
   let currentProfilePreference = null;
+  let inputDropdownEl = null;
+  let inputMenuEl = null;
+  let inputDisplayEl = null;
+  let outputDropdownEl = null;
+  let outputMenuEl = null;
+  let outputDisplayEl = null;
+  let deviceDocClickBound = false;
 
   function normalizeMidiPreference(source) {
     const current = (source && typeof source === "object") ? source : {};
@@ -97,6 +111,163 @@ export function createMidiFeature({
     return `${base} (Unavailable)`;
   }
 
+  function stripUnavailableSuffix(label) {
+    const raw = String(label || "").trim();
+    return raw.endsWith(" (Unavailable)") ? raw.slice(0, -" (Unavailable)".length) : raw;
+  }
+
+  function ensureOption(selectEl, value, label, unavailable = false) {
+    if (!selectEl || !value) return;
+    const existing = Array.from(selectEl.options || []).find((opt) => opt.value === value);
+    if (existing) {
+      if (label) existing.textContent = label;
+      if (unavailable) existing.dataset.unavailable = "true";
+      return;
+    }
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = label || value;
+    if (unavailable) option.dataset.unavailable = "true";
+    selectEl.appendChild(option);
+  }
+
+  function clearUnavailableOptions(selectEl, keepValue = "") {
+    if (!selectEl) return;
+    const keep = String(keepValue || "").trim();
+    Array.from(selectEl.options || []).forEach((opt) => {
+      if (opt.dataset?.unavailable === "true" && String(opt.value || "") !== keep) {
+        opt.remove();
+      }
+    });
+  }
+
+  function clearUnavailableDeviceSelections() {
+    const keepInput = d.midiSelect ? d.midiSelect.value : "";
+    const keepOutput = d.midiOutputSelect ? d.midiOutputSelect.value : "";
+    clearUnavailableOptions(d.midiSelect, keepInput);
+    clearUnavailableOptions(d.midiOutputSelect, keepOutput);
+  }
+
+  function closeDeviceDropdowns() {
+    closeOpenDropdowns({ except: null });
+  }
+
+  function renderDeviceDisplay(displayEl, option, fallbackText) {
+    if (!displayEl) return;
+    const text = stripUnavailableSuffix(option?.textContent || fallbackText || "Select device");
+    const unavailable = option?.dataset?.unavailable === "true";
+    renderLabelWithBadges(displayEl, {
+      text,
+      badges: unavailable ? [{ text: "Unavailable", kind: "state" }] : [],
+      truncate: true,
+    });
+  }
+
+  function ensureDeviceDropdowns() {
+    const attachDropdown = (selectEl, kind) => {
+      if (!selectEl) return;
+
+      let existingRoot = kind === "input" ? inputDropdownEl : outputDropdownEl;
+      if (existingRoot && existingRoot.isConnected) return;
+
+      selectEl.classList.add("hidden");
+      const root = document.createElement("div");
+      root.className = "target-dropdown midi-device-dropdown";
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "target-button";
+      button.title = kind === "input" ? "Input Device" : "Output Device";
+
+      const display = document.createElement("span");
+      display.className = "target-display";
+
+      const caret = document.createElement("span");
+      caret.className = "caret";
+      caret.textContent = "\u25be";
+
+      button.appendChild(display);
+      button.appendChild(caret);
+
+      const menu = document.createElement("div");
+      menu.className = "target-menu hidden";
+      wireDropdownToggle({ root, menu, trigger: button });
+
+      root.appendChild(button);
+      root.appendChild(menu);
+      selectEl.insertAdjacentElement("afterend", root);
+
+      if (kind === "input") {
+        inputDropdownEl = root;
+        inputMenuEl = menu;
+        inputDisplayEl = display;
+      } else {
+        outputDropdownEl = root;
+        outputMenuEl = menu;
+        outputDisplayEl = display;
+      }
+    };
+
+    attachDropdown(d.midiSelect, "input");
+    attachDropdown(d.midiOutputSelect, "output");
+
+    if (!deviceDocClickBound) {
+      deviceDocClickBound = true;
+      document.addEventListener("click", (event) => {
+        if (inputDropdownEl && inputDropdownEl.contains(event.target)) return;
+        if (outputDropdownEl && outputDropdownEl.contains(event.target)) return;
+        closeDeviceDropdowns();
+      });
+    }
+  }
+
+  function renderDeviceDropdownForSelect(selectEl, menuEl, displayEl, fallbackText) {
+    if (!selectEl || !menuEl || !displayEl) return;
+
+    const options = Array.from(selectEl.options || []).filter((opt) => String(opt.value || "").trim());
+    menuEl.innerHTML = "";
+
+    const selectedValue = String(selectEl.value || "");
+    let activeOption = options.find((opt) => opt.value === selectedValue) || null;
+
+    options.forEach((opt) => {
+      const optionButton = document.createElement("button");
+      optionButton.type = "button";
+      optionButton.className = "target-option";
+      if (opt.value === selectedValue) optionButton.classList.add("selected");
+
+      const optionLabel = document.createElement("span");
+      optionLabel.className = "target-label";
+      renderLabelWithBadges(optionLabel, {
+        text: stripUnavailableSuffix(opt.textContent || ""),
+        badges: opt.dataset.unavailable === "true" ? [{ text: "Unavailable", kind: "state" }] : [],
+        truncate: false,
+      });
+      optionButton.appendChild(optionLabel);
+
+      optionButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        selectEl.value = opt.value;
+        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+        closeDeviceDropdowns();
+      });
+
+      menuEl.appendChild(optionButton);
+    });
+
+    if (!activeOption && options.length > 0) {
+      activeOption = options[0];
+    }
+    renderDeviceDisplay(displayEl, activeOption, fallbackText);
+  }
+
+  function renderDeviceDropdowns() {
+    ensureDeviceDropdowns();
+    renderDeviceDropdownForSelect(d.midiSelect, inputMenuEl, inputDisplayEl, "Select input device");
+    renderDeviceDropdownForSelect(d.midiOutputSelect, outputMenuEl, outputDisplayEl, "Select output device");
+  }
+
   function hasPreference(pref) {
     const normalized = normalizeMidiPreference(pref);
     return Boolean(normalized.inputDeviceId && normalized.outputDeviceId);
@@ -122,34 +293,90 @@ export function createMidiFeature({
   }
 
   async function startWithResolvedDevice(input, output, options = {}) {
-    const resolvedInputId = input.id;
-    const resolvedOutputId = output.id;
-    const resolvedInputName = input.name || options.inputName || "";
-    const resolvedOutputName = output.name || options.outputName || "";
+    return applySelectedDevices({
+      inputId: input.id,
+      outputId: output.id,
+      inputName: input.name || options.inputName || "",
+      outputName: output.name || options.outputName || "",
+      source: options.fromProfile ? "profile" : (options.auto ? "auto" : "manual"),
+      auto: Boolean(options.auto),
+      fromProfile: Boolean(options.fromProfile),
+    });
+  }
+
+  async function applySelectedDevices({
+    inputId,
+    outputId,
+    inputName = "",
+    outputName = "",
+    source = "manual",
+    auto = false,
+    fromProfile = false,
+  } = {}) {
+    const nextInputId = String(inputId || "").trim();
+    const nextOutputId = String(outputId || "").trim();
+    if (!nextInputId || !nextOutputId) {
+      if (d.midiStatus) d.midiStatus.textContent = "Select both input and output devices";
+      renderDeviceDropdowns();
+      return { connected: false, reason: "invalid_selection" };
+    }
+    const inputUnavailable = Boolean(
+      d.midiSelect?.selectedOptions?.[0]?.dataset?.unavailable === "true"
+      && d.midiSelect?.value === nextInputId,
+    );
+    const outputUnavailable = Boolean(
+      d.midiOutputSelect?.selectedOptions?.[0]?.dataset?.unavailable === "true"
+      && d.midiOutputSelect?.value === nextOutputId,
+    );
+    if (inputUnavailable || outputUnavailable) {
+      if (d.midiStatus) {
+        d.midiStatus.textContent = "Selected device is unavailable. Choose an available input/output pair.";
+      }
+      renderDeviceDropdowns();
+      return { connected: false, reason: "unavailable_selection" };
+    }
+
+    if (nextInputId === connectedInputId && nextOutputId === connectedOutputId) {
+      if (d.midiSelect) d.midiSelect.value = nextInputId;
+      if (d.midiOutputSelect) d.midiOutputSelect.value = nextOutputId;
+      clearUnavailableDeviceSelections();
+      if (typeof showMain === "function") {
+        showMain(connectedInputName || inputName, connectedOutputName || outputName);
+      }
+      renderDeviceDropdowns();
+      return {
+        connected: true,
+        unchanged: true,
+        inputId: connectedInputId,
+        outputId: connectedOutputId,
+        inputName: connectedInputName || inputName,
+        outputName: connectedOutputName || outputName,
+      };
+    }
+
+    if (d.midiStatus) d.midiStatus.textContent = "Applying MIDI device change...";
+    if (d.midiSelect) d.midiSelect.value = nextInputId;
+    if (d.midiOutputSelect) d.midiOutputSelect.value = nextOutputId;
 
     await invoke("stop_midi_device").catch(() => { });
-    if (d.midiSelect) {
-      d.midiSelect.value = resolvedInputId;
-    }
-    if (d.midiOutputSelect) {
-      d.midiOutputSelect.value = resolvedOutputId;
+    await invoke("start_midi_device", { inputDeviceId: nextInputId, outputDeviceId: nextOutputId });
+
+    const resolvedInputName = inputName
+      || d.midiSelect?.options?.[d.midiSelect.selectedIndex]?.textContent
+      || nextInputId;
+    const resolvedOutputName = outputName
+      || d.midiOutputSelect?.options?.[d.midiOutputSelect.selectedIndex]?.textContent
+      || nextOutputId;
+
+    if (typeof saveMidiDeviceIds === "function") {
+      await saveMidiDeviceIds(nextInputId, nextOutputId, resolvedInputName, resolvedOutputName);
     }
 
-    await invoke("start_midi_device", { inputDeviceId: resolvedInputId, outputDeviceId: resolvedOutputId });
-    if (typeof saveMidiDeviceIds === "function") {
-      await saveMidiDeviceIds(
-        resolvedInputId,
-        resolvedOutputId,
-        resolvedInputName,
-        resolvedOutputName
-      );
-    }
-    setConnectedState(
-      resolvedInputId,
-      resolvedOutputId,
-      resolvedInputName,
-      resolvedOutputName
-    );
+    setConnectedState(nextInputId, nextOutputId, resolvedInputName, resolvedOutputName);
+    currentProfilePreference = getCurrentConnectedPreference();
+    suspendProfileAutoReconnect = false;
+    clearUnavailableDeviceSelections();
+
     if (typeof showMain === "function") {
       showMain(resolvedInputName, resolvedOutputName);
     }
@@ -159,18 +386,50 @@ export function createMidiFeature({
     startSessionRefresh(refreshSessions || (async () => { }), d.mainScreen);
     if (typeof onConnected === "function") {
       onConnected({
-        inputId: resolvedInputId,
-        outputId: resolvedOutputId,
-        auto: Boolean(options.auto),
-        fromProfile: Boolean(options.fromProfile),
+        inputId: nextInputId,
+        outputId: nextOutputId,
+        source,
+        auto: Boolean(auto),
+        fromProfile: Boolean(fromProfile),
       });
     }
+    if (typeof onProfileDeviceSelected === "function") {
+      await onProfileDeviceSelected(getCurrentConnectedPreference());
+    }
+    renderDeviceDropdowns();
+
     return {
-      inputId: resolvedInputId,
-      outputId: resolvedOutputId,
+      connected: true,
+      inputId: nextInputId,
+      outputId: nextOutputId,
       inputName: resolvedInputName,
       outputName: resolvedOutputName,
     };
+  }
+
+  function queueApplySelectedDevices(payload) {
+    queuedApply = payload;
+    processApplyQueue().catch(() => { });
+  }
+
+  async function processApplyQueue() {
+    if (applyInFlight) return;
+    applyInFlight = true;
+    try {
+      while (queuedApply) {
+        const next = queuedApply;
+        queuedApply = null;
+        try {
+          await applySelectedDevices(next);
+        } catch (error) {
+          if (d.midiStatus) {
+            d.midiStatus.textContent = `Connect failed: ${error}`;
+          }
+        }
+      }
+    } finally {
+      applyInFlight = false;
+    }
   }
 
   function getPreferredUnavailableLabels() {
@@ -318,8 +577,13 @@ export function createMidiFeature({
       const devices = await invoke("list_midi_devices");
       const outputDevices = await invoke("list_midi_output_devices");
 
-      const previousSelection = d.midiSelect ? d.midiSelect.value : "";
-      const previousOutputSelection = d.midiOutputSelect ? d.midiOutputSelect.value : "";
+      const pref = normalizeMidiPreference(currentProfilePreference);
+      const previousSelection = d.midiSelect
+        ? (d.midiSelect.value || pref.inputDeviceId || connectedInputId)
+        : (pref.inputDeviceId || connectedInputId);
+      const previousOutputSelection = d.midiOutputSelect
+        ? (d.midiOutputSelect.value || pref.outputDeviceId || connectedOutputId)
+        : (pref.outputDeviceId || connectedOutputId);
 
       if (d.midiSelect) {
         d.midiSelect.innerHTML = "";
@@ -361,6 +625,39 @@ export function createMidiFeature({
         d.midiOutputSelect.appendChild(option);
       });
 
+      if (pref.inputDeviceId && !(Array.isArray(devices) && devices.some((dvc) => dvc.id === pref.inputDeviceId))) {
+        ensureOption(
+          d.midiSelect,
+          pref.inputDeviceId,
+          unavailableDeviceLabel(pref.inputDeviceName, pref.inputDeviceId, "Input"),
+          true,
+        );
+      }
+      if (pref.outputDeviceId && !(Array.isArray(outputDevices) && outputDevices.some((dvc) => dvc.id === pref.outputDeviceId))) {
+        ensureOption(
+          d.midiOutputSelect,
+          pref.outputDeviceId,
+          unavailableDeviceLabel(pref.outputDeviceName, pref.outputDeviceId, "Output"),
+          true,
+        );
+      }
+      if (connectedInputId && !(Array.isArray(devices) && devices.some((dvc) => dvc.id === connectedInputId))) {
+        ensureOption(
+          d.midiSelect,
+          connectedInputId,
+          unavailableDeviceLabel(connectedInputName, connectedInputId, "Input"),
+          true,
+        );
+      }
+      if (connectedOutputId && !(Array.isArray(outputDevices) && outputDevices.some((dvc) => dvc.id === connectedOutputId))) {
+        ensureOption(
+          d.midiOutputSelect,
+          connectedOutputId,
+          unavailableDeviceLabel(connectedOutputName, connectedOutputId, "Output"),
+          true,
+        );
+      }
+
       if (d.midiSelect && previousSelection) {
         d.midiSelect.value = previousSelection;
       }
@@ -369,14 +666,16 @@ export function createMidiFeature({
       }
 
       stopAutoRefresh();
-      if (d.midiStatus) {
+      if (d.midiStatus && !connectedInputId && !connectedOutputId) {
         d.midiStatus.textContent = `Found ${(devices || []).length} inputs, ${(outputDevices || []).length} outputs`;
       }
+      renderDeviceDropdowns();
       return { inputs: Array.isArray(devices) ? devices : [], outputs: Array.isArray(outputDevices) ? outputDevices : [] };
     } catch (error) {
       if (d.midiStatus) {
         d.midiStatus.textContent = `MIDI error: ${error}`;
       }
+      renderDeviceDropdowns();
       startAutoRefresh(refreshMidiDevices);
       return { inputs: [], outputs: [] };
     }
@@ -389,40 +688,10 @@ export function createMidiFeature({
       if (d.midiStatus) {
         d.midiStatus.textContent = "Select both input and output devices";
       }
+      renderDeviceDropdowns();
       return;
     }
-    try {
-      await invoke("start_midi_device", { inputDeviceId: inputId, outputDeviceId: outputId });
-      suspendProfileAutoReconnect = false;
-      if (typeof saveMidiDeviceIds === "function") {
-        const inputName = d.midiSelect?.options?.[d.midiSelect.selectedIndex]?.textContent || "";
-        const outputName = d.midiOutputSelect?.options?.[d.midiOutputSelect.selectedIndex]?.textContent || "";
-        await saveMidiDeviceIds(inputId, outputId, inputName, outputName);
-      }
-
-      const inputName = d.midiSelect?.options?.[d.midiSelect.selectedIndex]?.textContent;
-      const outputName = d.midiOutputSelect?.options?.[d.midiOutputSelect.selectedIndex]?.textContent;
-      setConnectedState(inputId, outputId, inputName || "", outputName || "");
-      currentProfilePreference = getCurrentConnectedPreference();
-      if (typeof showMain === "function") {
-        showMain(inputName, outputName);
-      }
-
-      if (typeof refreshSessions === "function") {
-        await refreshSessions();
-      }
-      startSessionRefresh(refreshSessions || (async () => { }), d.mainScreen);
-      if (typeof onConnected === "function") {
-        onConnected({ inputId, outputId });
-      }
-      if (typeof onProfileDeviceSelected === "function") {
-        await onProfileDeviceSelected(getCurrentConnectedPreference());
-      }
-    } catch (error) {
-      if (d.midiStatus) {
-        d.midiStatus.textContent = `Connect failed: ${error}`;
-      }
-    }
+    queueApplySelectedDevices({ inputId, outputId, source: "manual" });
   }
 
   async function disconnect() {
@@ -437,9 +706,7 @@ export function createMidiFeature({
     if (typeof clearSavedMidiDeviceIds === "function") {
       await clearSavedMidiDeviceIds();
     }
-    if (typeof showSetup === "function") {
-      showSetup("Not connected");
-    }
+    if (d.midiStatus) d.midiStatus.textContent = "Not connected";
     await refreshMidiDevices();
     if (typeof onDisconnected === "function") {
       onDisconnected();
@@ -495,11 +762,17 @@ export function createMidiFeature({
     const savedInputName = saved?.inputName || "";
     const savedOutputName = saved?.outputName || "";
 
-    if (!savedInputId) {
-      if (typeof showSetup === "function") {
-        showSetup();
-      }
-      return;
+    currentProfilePreference = normalizeMidiPreference({
+      inputDeviceId: savedInputId,
+      outputDeviceId: savedOutputId,
+      inputDeviceName: savedInputName,
+      outputDeviceName: savedOutputName,
+    });
+
+    if (!savedInputId || !savedOutputId) {
+      if (d.midiStatus) d.midiStatus.textContent = "Select input and output devices.";
+      renderDeviceDropdowns();
+      return { connected: false, reason: "missing_saved" };
     }
 
     const inputs = Array.isArray(deviceData?.inputs) ? deviceData.inputs : [];
@@ -514,72 +787,46 @@ export function createMidiFeature({
       outputMatch = savedOutputId ? findPreferredDevice(refreshed.outputs, savedOutputId, savedOutputName) : null;
     }
 
-    if (!inputMatch) {
-      if (typeof showSetup === "function") {
-        showSetup("Saved input device not found.");
+    if (!inputMatch || !outputMatch) {
+      if (d.midiStatus) {
+        d.midiStatus.textContent = "Saved MIDI device unavailable. Select a new available pair.";
       }
-      return;
-    }
-
-    if (savedOutputId && !outputMatch) {
-      if (typeof showSetup === "function") {
-        showSetup("Saved output device not found.");
+      ensureOption(
+        d.midiSelect,
+        savedInputId,
+        unavailableDeviceLabel(savedInputName, savedInputId, "Input"),
+        true,
+      );
+      ensureOption(
+        d.midiOutputSelect,
+        savedOutputId,
+        unavailableDeviceLabel(savedOutputName, savedOutputId, "Output"),
+        true,
+      );
+      if (d.midiSelect) d.midiSelect.value = savedInputId;
+      if (d.midiOutputSelect) d.midiOutputSelect.value = savedOutputId;
+      renderDeviceDropdowns();
+      if (connectedInputId && connectedOutputId) {
+        return { connected: true, preserved: true, reason: "saved_missing_preserved" };
       }
-      return;
-    }
-
-    if (!savedOutputId) {
-      if (typeof showSetup === "function") {
-        showSetup("Saved output device missing.");
-      }
-      return;
-    }
-
-    const resolvedInputId = inputMatch?.id || savedInputId;
-    const resolvedOutputId = outputMatch?.id || savedOutputId;
-    if (d.midiSelect) {
-      d.midiSelect.value = resolvedInputId;
-    }
-    if (d.midiOutputSelect) {
-      d.midiOutputSelect.value = resolvedOutputId;
+      return { connected: false, reason: "saved_missing" };
     }
 
     try {
-      await invoke("start_midi_device", { inputDeviceId: resolvedInputId, outputDeviceId: resolvedOutputId });
-      if (typeof saveMidiDeviceIds === "function") {
-        await saveMidiDeviceIds(
-          resolvedInputId,
-          resolvedOutputId,
-          inputMatch?.name || savedInputName,
-          outputMatch?.name || savedOutputName
-        );
-      }
-      if (typeof showMain === "function") {
-        showMain(inputMatch.name, outputMatch ? outputMatch.name : "Unknown");
-      }
-      setConnectedState(
-        resolvedInputId,
-        resolvedOutputId,
-        inputMatch?.name || savedInputName,
-        outputMatch?.name || savedOutputName
-      );
-      currentProfilePreference = getCurrentConnectedPreference();
-      if (typeof refreshSessions === "function") {
-        await refreshSessions();
-      }
-      startSessionRefresh(refreshSessions || (async () => { }), d.mainScreen);
-      if (typeof onConnected === "function") {
-        onConnected({ inputId: resolvedInputId, outputId: resolvedOutputId, auto: true });
-      }
+      if (d.midiSelect) d.midiSelect.value = inputMatch?.id || savedInputId;
+      if (d.midiOutputSelect) d.midiOutputSelect.value = outputMatch?.id || savedOutputId;
+      await startWithResolvedDevice(inputMatch, outputMatch, {
+        inputName: inputMatch?.name || savedInputName,
+        outputName: outputMatch?.name || savedOutputName,
+        auto: true,
+      });
       return { connected: true };
     } catch (error) {
       setConnectedState("", "", "", "");
-      if (typeof showSetup === "function") {
-        showSetup();
-      }
       if (d.midiStatus) {
         d.midiStatus.textContent = `Connect failed: ${error}`;
       }
+      renderDeviceDropdowns();
       return { connected: false };
     }
   }
@@ -593,6 +840,13 @@ export function createMidiFeature({
     }
 
     if (matchesConnectedPreference(pref)) {
+      // Profile switch can leave the visible dropdown on a previously selected
+      // unavailable device even when the active connection already matches this profile.
+      // Force UI selection back to the profile's connected pair.
+      if (d.midiSelect) d.midiSelect.value = pref.inputDeviceId;
+      if (d.midiOutputSelect) d.midiOutputSelect.value = pref.outputDeviceId;
+      clearUnavailableDeviceSelections();
+      renderDeviceDropdowns();
       return { handled: true, connected: true, unchanged: true };
     }
 
@@ -607,19 +861,32 @@ export function createMidiFeature({
     }
 
     if (!inputMatch || !outputMatch) {
-      stopSessionRefresh();
-      await invoke("stop_midi_device").catch(() => { });
-      setConnectedState("", "", "", "");
-      if (typeof showMain === "function") {
-        showMain(
-          unavailableDeviceLabel(pref.inputDeviceName, pref.inputDeviceId, "Input"),
-          unavailableDeviceLabel(pref.outputDeviceName, pref.outputDeviceId, "Output")
-        );
-      }
+      ensureOption(
+        d.midiSelect,
+        pref.inputDeviceId,
+        unavailableDeviceLabel(pref.inputDeviceName, pref.inputDeviceId, "Input"),
+        true,
+      );
+      ensureOption(
+        d.midiOutputSelect,
+        pref.outputDeviceId,
+        unavailableDeviceLabel(pref.outputDeviceName, pref.outputDeviceId, "Output"),
+        true,
+      );
+      if (d.midiSelect) d.midiSelect.value = pref.inputDeviceId;
+      if (d.midiOutputSelect) d.midiOutputSelect.value = pref.outputDeviceId;
+
       if (d.midiStatus) {
-        d.midiStatus.textContent = "Saved profile MIDI device(s) not found.";
+        d.midiStatus.textContent = connectedInputId && connectedOutputId
+          ? "Profile MIDI device unavailable. Keeping current connection."
+          : "Saved profile MIDI device(s) not found.";
       }
-      return { handled: true, connected: false, reason: "missing" };
+      renderDeviceDropdowns();
+      return {
+        handled: true,
+        connected: Boolean(connectedInputId && connectedOutputId),
+        reason: "missing",
+      };
     }
 
     try {
@@ -631,16 +898,16 @@ export function createMidiFeature({
       });
       return { handled: true, connected: true };
     } catch (error) {
-      setConnectedState("", "", "", "");
-      if (typeof showSetup === "function") {
-        showSetup(`Connect failed: ${error}`);
-      }
+      if (d.midiStatus) d.midiStatus.textContent = `Connect failed: ${error}`;
+      renderDeviceDropdowns();
       return { handled: true, connected: false, reason: "connect_failed" };
     }
   }
 
   function bindUi() {
     startAvailabilityMonitor();
+    ensureDeviceDropdowns();
+    renderDeviceDropdowns();
     if (d.learnPanel) {
       d.learnPanel.addEventListener("click", (event) => {
         if (event.target === d.learnPanel) {
@@ -657,14 +924,14 @@ export function createMidiFeature({
         await refreshMidiDevices();
       });
     }
-    if (d.connectMidiButton) {
-      d.connectMidiButton.addEventListener("click", async () => {
+    if (d.midiSelect) {
+      d.midiSelect.addEventListener("change", async () => {
         await connectSelected();
       });
     }
-    if (d.disconnectMidiButton) {
-      d.disconnectMidiButton.addEventListener("click", async () => {
-        await disconnect();
+    if (d.midiOutputSelect) {
+      d.midiOutputSelect.addEventListener("change", async () => {
+        await connectSelected();
       });
     }
     if (d.learnBindingButton) {
