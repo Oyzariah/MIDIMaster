@@ -265,7 +265,7 @@ export function createBindingsFeature({
         );
 
         const modeDropdown = document.createElement("div");
-        modeDropdown.className = "target-dropdown";
+        modeDropdown.className = "target-dropdown mode-dropdown";
         const modeButton = document.createElement("button");
         modeButton.type = "button";
         modeButton.className = "target-button";
@@ -293,11 +293,23 @@ export function createBindingsFeature({
           modeValue = "fader_rel";
         }
 
-        const renderModeLabel = (container, option) => renderLabelWithBadges(container, {
-          text: option?.label || "",
-          badges: option?.badge ? [{ text: option.badge, kind: "neutral" }] : [],
-          truncate: false,
-        });
+        const renderModeLabel = (container, option) => {
+          renderLabelWithBadges(container, {
+            text: option?.label || "",
+            badges: option?.badge ? [{ text: option.badge, kind: "neutral" }] : [],
+            truncate: false,
+          });
+
+          const chip = container.querySelector(".target-label");
+          if (chip) {
+            chip.classList.add("target-chip", "mode-chip");
+            const icon = document.createElement("span");
+            icon.className = "target-icon mode-chip-icon";
+            icon.setAttribute("aria-hidden", "true");
+            icon.textContent = option?.label?.[0]?.toUpperCase() || "M";
+            chip.prepend(icon);
+          }
+        };
 
         const applyModeSelection = async (nextModeValue) => {
           if (nextModeValue === "button") {

@@ -37,7 +37,7 @@ body.osd-only.dark-mode {
 }
 
 :root {
-  --bindings-grid-cols: minmax(140px, 180px) minmax(180px, 220px) minmax(150px, 190px) minmax(240px, 1fr) minmax(120px, 120px);
+  --bindings-grid-cols: minmax(140px, 180px) minmax(180px, 220px) minmax(180px, 215px) minmax(240px, 1fr) minmax(120px, 120px);
   --bindings-grid-gap: 18px;
 }
 
@@ -692,8 +692,8 @@ button:hover {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-gutter: stable;
-  padding-right: 6px;
+  scrollbar-gutter: auto;
+  padding-right: 0;
   align-content: start;
   grid-auto-rows: max-content;
 }
@@ -812,6 +812,60 @@ button:hover {
   border-radius: 999px;
   padding: 2px 8px 2px 4px;
   max-width: 240px;
+}
+
+.mode-chip {
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+.mode-chip .mode-chip-icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #1f2b4f;
+  color: #f7faff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  flex: 0 0 auto;
+  object-fit: cover;
+}
+
+.mode-chip .target-label-content {
+  min-width: 0;
+}
+
+.mode-chip .target-tag--neutral {
+  background: #dde6f5;
+  border-color: #bccce6;
+  color: #21395f;
+}
+
+.mode-chip .target-label-content {
+  gap: 6px;
+}
+
+.mode-chip .target-tag {
+  font-size: 9px;
+  line-height: 1.3;
+  padding: 1px 5px;
+  letter-spacing: 0.02em;
+  max-width: 84px;
+}
+
+body.dark-mode .mode-chip .target-tag--neutral {
+  background: #3f5883;
+  border-color: #7090c5;
+  color: #f4f8ff;
+}
+
+body.dark-mode .mode-chip .mode-chip-icon {
+  background: #a9c3ff;
+  color: #13244a;
 }
 
 
