@@ -102,6 +102,19 @@ export function createSettingsFeature({
     return base;
   }
 
+  function resolveEffectiveMonitor(monitors, currentSettings) {
+    const list = Array.isArray(monitors) ? monitors : [];
+    if (list.length === 0) return null;
+
+    const requestedId = String(currentSettings?.monitorId || "").trim();
+    if (requestedId) {
+      const byId = list.find((monitor) => String(monitor?.stable_id || "").trim() === requestedId);
+      if (byId) return byId;
+    }
+
+    return list.find((monitor) => Boolean(monitor?.is_primary)) || list[0];
+  }
+
   function closeMonitorDropdown() {
     if (!monitorDropdownEl) return;
     closeOpenDropdowns({ except: null });
@@ -356,8 +369,23 @@ export function createSettingsFeature({
         option.value = "0";
         option.textContent = "Primary monitor";
         d.osdMonitorSelect.appendChild(option);
+        d.osdMonitorSelect.value = "0";
+      } else {
+        // Mirror backend monitor resolution: prefer stable_id match, else primary monitor.
+        const effective = resolveEffectiveMonitor(next, current);
+        const fallbackIndex = Math.max(0, Number(current.monitorIndex ?? 0));
+        const effectiveValue = String(effective?.index ?? fallbackIndex);
+        d.osdMonitorSelect.value = effectiveValue;
+
+        if (typeof setOsdSettings === "function" && effective) {
+          setOsdSettings({
+            ...current,
+            monitorIndex: Number(effectiveValue),
+            monitorName: effective.name || null,
+            monitorId: effective.stable_id || null,
+          });
+        }
       }
-      d.osdMonitorSelect.value = String(current.monitorIndex ?? 0);
       renderMonitorDropdownOptions(next);
     }
   }
