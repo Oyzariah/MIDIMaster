@@ -5,6 +5,7 @@ mod app_settings;
 mod audio;
 mod bindings;
 mod commands;
+mod device_target;
 mod midi;
 mod model;
 mod plugin_api;
@@ -19,26 +20,11 @@ use app_settings::{AppSettings, AppSettingsStore};
 use audio::AudioBackend;
 use bindings::{apply_midi_event, find_binding, BindingKey, BindingState};
 use commands::*;
+use device_target::{parse_device_target, DeviceTargetKind};
 use midi::MidiManager;
 use model::{LearnedControl, MidiEvent, OsdSettings, Profile};
 use windows_autostart::set_windows_autostart;
 use windows_display::{display_device_id, monitor_display_name};
-
-#[derive(Clone, Copy)]
-enum DeviceTargetKind {
-    Playback,
-    Recording,
-}
-
-fn parse_device_target(device_id: &str) -> (DeviceTargetKind, &str) {
-    if let Some(raw) = device_id.strip_prefix("recording:") {
-        return (DeviceTargetKind::Recording, raw);
-    }
-    if let Some(raw) = device_id.strip_prefix("playback:") {
-        return (DeviceTargetKind::Playback, raw);
-    }
-    (DeviceTargetKind::Playback, device_id)
-}
 
 fn send_media_key(vk: u16) {
     use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -657,6 +643,25 @@ impl AppState {
                 if settings_enabled {
                     if let Some(osd_window) = app.get_webview_window("osd") {
                         let _ = osd_window.show();
+                        let _ = osd_window.set_always_on_top(true);
+                        #[cfg(target_os = "windows")]
+                        if let Ok(hwnd) = osd_window.hwnd() {
+                            use windows::Win32::Foundation::HWND;
+                            use windows::Win32::UI::WindowsAndMessaging::{
+                                SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+                            };
+                            unsafe {
+                                let _ = SetWindowPos(
+                                    HWND(hwnd.0 as _),
+                                    Some(HWND_TOPMOST),
+                                    0,
+                                    0,
+                                    0,
+                                    0,
+                                    SWP_NOMOVE | SWP_NOSIZE,
+                                );
+                            }
+                        }
                         let _ = osd_window.emit("mute_update", payload.clone());
                         if let Ok(payload_json) = serde_json::to_string(&payload) {
                             let script = format!(
@@ -794,6 +799,25 @@ impl AppState {
             if settings_enabled {
                 if let Some(osd_window) = app.get_webview_window("osd") {
                     let _ = osd_window.show();
+                    let _ = osd_window.set_always_on_top(true);
+                    #[cfg(target_os = "windows")]
+                    if let Ok(hwnd) = osd_window.hwnd() {
+                        use windows::Win32::Foundation::HWND;
+                        use windows::Win32::UI::WindowsAndMessaging::{
+                            SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+                        };
+                        unsafe {
+                            let _ = SetWindowPos(
+                                HWND(hwnd.0 as _),
+                                Some(HWND_TOPMOST),
+                                0,
+                                0,
+                                0,
+                                0,
+                                SWP_NOMOVE | SWP_NOSIZE,
+                            );
+                        }
+                    }
                     let _ = osd_window.emit("volume_update", payload.clone());
                     if let Ok(payload_json) = serde_json::to_string(&payload) {
                         let script = format!(

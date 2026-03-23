@@ -1,8 +1,10 @@
 import {
   closeOpenDropdowns,
-  renderLabelWithBadges,
-  wireDropdownToggle,
 } from "../ui/dropdown_badges.js";
+import {
+  createSelectDropdownShell,
+  renderNativeSelectDropdown,
+} from "../ui/dropdown_select.js";
 
 export function createMidiFeature({
   invoke,
@@ -152,17 +154,6 @@ export function createMidiFeature({
     closeOpenDropdowns({ except: null });
   }
 
-  function renderDeviceDisplay(displayEl, option, fallbackText) {
-    if (!displayEl) return;
-    const text = stripUnavailableSuffix(option?.textContent || fallbackText || "Select device");
-    const unavailable = option?.dataset?.unavailable === "true";
-    renderLabelWithBadges(displayEl, {
-      text,
-      badges: unavailable ? [{ text: "Unavailable", kind: "state" }] : [],
-      truncate: true,
-    });
-  }
-
   function ensureDeviceDropdowns() {
     const attachDropdown = (selectEl, kind) => {
       if (!selectEl) return;
@@ -171,40 +162,21 @@ export function createMidiFeature({
       if (existingRoot && existingRoot.isConnected) return;
 
       selectEl.classList.add("hidden");
-      const root = document.createElement("div");
-      root.className = "target-dropdown midi-device-dropdown";
-
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "target-button";
-      button.title = kind === "input" ? "Input Device" : "Output Device";
-
-      const display = document.createElement("span");
-      display.className = "target-display";
-
-      const caret = document.createElement("span");
-      caret.className = "caret";
-      caret.textContent = "\u25be";
-
-      button.appendChild(display);
-      button.appendChild(caret);
-
-      const menu = document.createElement("div");
-      menu.className = "target-menu hidden";
-      wireDropdownToggle({ root, menu, trigger: button });
-
-      root.appendChild(button);
-      root.appendChild(menu);
-      selectEl.insertAdjacentElement("afterend", root);
+      const entry = createSelectDropdownShell({
+        selectEl,
+        rootClass: "midi-device-dropdown",
+        title: kind === "input" ? "Input Device" : "Output Device",
+      });
+      if (!entry) return;
 
       if (kind === "input") {
-        inputDropdownEl = root;
-        inputMenuEl = menu;
-        inputDisplayEl = display;
+        inputDropdownEl = entry.root;
+        inputMenuEl = entry.menu;
+        inputDisplayEl = entry.display;
       } else {
-        outputDropdownEl = root;
-        outputMenuEl = menu;
-        outputDisplayEl = display;
+        outputDropdownEl = entry.root;
+        outputMenuEl = entry.menu;
+        outputDisplayEl = entry.display;
       }
     };
 
@@ -223,43 +195,18 @@ export function createMidiFeature({
 
   function renderDeviceDropdownForSelect(selectEl, menuEl, displayEl, fallbackText) {
     if (!selectEl || !menuEl || !displayEl) return;
-
-    const options = Array.from(selectEl.options || []).filter((opt) => String(opt.value || "").trim());
-    menuEl.innerHTML = "";
-
-    const selectedValue = String(selectEl.value || "");
-    let activeOption = options.find((opt) => opt.value === selectedValue) || null;
-
-    options.forEach((opt) => {
-      const optionButton = document.createElement("button");
-      optionButton.type = "button";
-      optionButton.className = "target-option";
-      if (opt.value === selectedValue) optionButton.classList.add("selected");
-
-      const optionLabel = document.createElement("span");
-      optionLabel.className = "target-label";
-      renderLabelWithBadges(optionLabel, {
-        text: stripUnavailableSuffix(opt.textContent || ""),
-        badges: opt.dataset.unavailable === "true" ? [{ text: "Unavailable", kind: "state" }] : [],
-        truncate: false,
-      });
-      optionButton.appendChild(optionLabel);
-
-      optionButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        selectEl.value = opt.value;
-        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
-        closeDeviceDropdowns();
-      });
-
-      menuEl.appendChild(optionButton);
+    renderNativeSelectDropdown({
+      entry: { menu: menuEl, display: displayEl },
+      selectEl,
+      fallbackText,
+      closeDropdowns: closeDeviceDropdowns,
+      formatOptionText: (opt) => stripUnavailableSuffix(opt.textContent || ""),
+      getOptionBadges: (opt) => (opt.dataset.unavailable === "true"
+        ? [{ text: "Unavailable", kind: "state" }]
+        : []),
+      truncateMenuLabels: false,
+      truncateDisplayLabel: true,
     });
-
-    if (!activeOption && options.length > 0) {
-      activeOption = options[0];
-    }
-    renderDeviceDisplay(displayEl, activeOption, fallbackText);
   }
 
   function renderDeviceDropdowns() {

@@ -44,6 +44,25 @@ fn normalize_profile_bindings(profile: &mut Profile) -> bool {
     changed
 }
 
+fn set_active_profile_state(
+    state: &AppState,
+    app: &AppHandle,
+    profile: &Profile,
+) -> Result<(), String> {
+    *state
+        .active_profile
+        .lock()
+        .map_err(|_| "Lock poisoned".to_string())? = Some(profile.clone());
+
+    if let Ok(mut settings) = state.osd_settings.lock() {
+        *settings = profile.osd_settings.clone();
+        crate::AppState::apply_osd_settings(app, &settings);
+    }
+
+    state.sync_feedback_values(profile);
+    Ok(())
+}
+
 #[tauri::command]
 pub fn list_profiles(state: State<AppState>) -> Result<Vec<ProfileSummary>, String> {
     state
@@ -78,16 +97,7 @@ pub fn load_profile(
             .map_err(|err| err.to_string())?;
     }
 
-    *state
-        .active_profile
-        .lock()
-        .map_err(|_| "Lock poisoned".to_string())? = Some(profile.clone());
-
-    if let Ok(mut settings) = state.osd_settings.lock() {
-        *settings = profile.osd_settings.clone();
-        crate::AppState::apply_osd_settings(&app, &settings);
-    }
-    state.sync_feedback_values(&profile);
+    set_active_profile_state(&state, &app, &profile)?;
     Ok(profile)
 }
 
@@ -102,15 +112,7 @@ pub fn save_profile(
         .profile_store
         .save_profile(profile.clone())
         .map_err(|err| err.to_string())?;
-    *state
-        .active_profile
-        .lock()
-        .map_err(|_| "Lock poisoned".to_string())? = Some(profile.clone());
-    if let Ok(mut settings) = state.osd_settings.lock() {
-        *settings = profile.osd_settings.clone();
-        crate::AppState::apply_osd_settings(&app, &settings);
-    }
-    state.sync_feedback_values(&profile);
+    set_active_profile_state(&state, &app, &profile)?;
     Ok(())
 }
 

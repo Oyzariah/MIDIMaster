@@ -7,6 +7,8 @@ import { createTargetsFeature } from "./features/targets/targets.js";
 import { createOsdFeature } from "./features/osd/osd.js";
 import { createMidiFeature } from "./features/midi/midi.js";
 import { createTargetCore } from "./core/target_core.js";
+import { createConnectionsPanelController } from "./app/connections_panel.js";
+import { createAlertsController } from "./app/alerts.js";
 
 let coreApi = null;
 let eventApi = null;
@@ -1040,134 +1042,41 @@ function closeConnectionsPanel() {
   }
   connectionsPanel.classList.add("hidden");
 }
-async function reloadPlugins() {
-  try {
-    if (pluginHost) {
-      await pluginHost.stop().catch(() => { });
-    }
-  } catch { }
-  pluginHost = null;
-  pluginHostStarted = false;
-  await startPluginHostIfNeeded().catch(() => { });
-  mountConnectionsTabs({ force: true });
-}
+let connectionsController = null;
 
 const pluginsTabs = createPluginsTabs({
   invoke,
   getPluginHost: () => pluginHost,
-  reloadPlugins,
+  reloadPlugins: () => connectionsController?.reloadPlugins?.(),
 });
 
-const mountPluginsManagerTab = pluginsTabs.mountPluginsManagerTab;
-const mountPluginsStoreTab = pluginsTabs.mountPluginsStoreTab;
-
-let connectionsTabsSignature = "";
-let connectionsSidebarListenerBound = false;
-
-function mountConnectionsTabs(opts = null) {
-  const force = (opts && typeof opts === "object") ? Boolean(opts.force) : false;
-  if (!connectionsSidebar || !connectionsContent) {
-    return;
-  }
-
-  if (!connectionsSidebarListenerBound) {
-    connectionsSidebarListenerBound = true;
-    // Click handling via delegation
-    connectionsSidebar.addEventListener("click", (event) => {
-      const btn = event.target?.closest?.(".connections-nav-item");
-      if (!btn) return;
-      const tabId = btn.dataset.tab;
-      if (!tabId) return;
-
-      connectionsSidebar.querySelectorAll(".connections-nav-item").forEach((i) => i.classList.remove("active"));
-      connectionsContent.querySelectorAll(".connection-tab").forEach((t) => t.classList.remove("active"));
-
-      btn.classList.add("active");
-      const pane = document.getElementById(`connection-tab-${tabId}`);
-      if (pane) pane.classList.add("active");
-    });
-  }
-
-  const pluginTabs = pluginHost ? pluginHost.getConnectionTabs() : [];
-  const tabs = [
-    {
-      id: "__plugins_manager__",
-      name: "Installed",
-      icon_data: PLUGINS_ICON_DATA,
-      mount: mountPluginsManagerTab,
-    },
-    {
-      id: "__plugins_store__",
-      name: "Store",
-      icon_data: PLUGINS_ICON_DATA,
-      mount: mountPluginsStoreTab,
-    },
-    ...pluginTabs,
-  ];
-
-  const sig = Array.isArray(tabs) ? tabs.map((t) => t.id).join("|") : "";
-  if (!force && sig === connectionsTabsSignature && connectionsSidebar.childElementCount > 0) {
-    return;
-  }
-  connectionsTabsSignature = sig;
-
-  connectionsSidebar.innerHTML = "";
-  connectionsContent.innerHTML = "";
-
-  if (!tabs.length) {
-    return;
-  }
-
-  for (const tab of tabs) {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "connections-nav-item";
-    btn.dataset.tab = tab.id;
-    const icon = document.createElement("img");
-    icon.className = "nav-icon";
-    icon.alt = "";
-    icon.src = tab.icon_data || "";
-    const label = document.createElement("span");
-    label.textContent = tab.name;
-    btn.appendChild(icon);
-    btn.appendChild(label);
-    connectionsSidebar.appendChild(btn);
-
-    const pane = document.createElement("div");
-    pane.id = `connection-tab-${tab.id}`;
-    pane.className = "connection-tab";
-    connectionsContent.appendChild(pane);
-
-    try {
-      tab.mount(pane);
-    } catch (e) {
-      pane.innerHTML = `<div class=\"connection-description\"><p>Failed to load ${tab.name} UI.</p></div>`;
+connectionsController = createConnectionsPanelController({
+  dom: {
+    connectionsPanel,
+    connectionsPanelClose,
+    connectionsButton,
+    connectionsSidebar,
+    connectionsContent,
+    closeConnectionsPanel,
+  },
+  pluginsTabs: {
+    PLUGINS_ICON_DATA,
+    mountPluginsManagerTab: pluginsTabs.mountPluginsManagerTab,
+    mountPluginsStoreTab: pluginsTabs.mountPluginsStoreTab,
+    preloadInstalledPlugins: () => pluginsTabs.preloadInstalledPlugins(),
+  },
+  getPluginHost: () => pluginHost,
+  setPluginHost: (next) => {
+    pluginHost = next;
+    if (!next) {
+      pluginHostStarted = false;
     }
-  }
+  },
+  startPluginHostIfNeeded,
+});
 
-  // Activate first tab by default
-  const firstBtn = connectionsSidebar.querySelector(".connections-nav-item");
-  const firstPane = connectionsContent.querySelector(".connection-tab");
-  if (firstBtn) firstBtn.classList.add("active");
-  if (firstPane) firstPane.classList.add("active");
-}
-
-async function openConnectionsPanel() {
-  if (!connectionsPanel) {
-    return;
-  }
-
-  // Preload installed plugins so the first render doesn't flash "Loading...".
-  await pluginsTabs.preloadInstalledPlugins().catch(() => { });
-
-  connectionsPanel.classList.remove("hidden");
-
-  // Show something immediately, then refresh once plugins are ready.
-  mountConnectionsTabs({ force: true });
-  startPluginHostIfNeeded()
-    .then(() => mountConnectionsTabs({ force: true }))
-    .catch(() => { });
-}
+const mountConnectionsTabs = (...args) => connectionsController?.mountConnectionsTabs?.(...args);
+const openConnectionsPanel = (...args) => connectionsController?.openConnectionsPanel?.(...args);
 
 async function applyOsdSettings(nextSettings) {
   if (settingsFeature && typeof settingsFeature.applyOsdSettings === "function") {
@@ -1205,60 +1114,23 @@ async function loadAppSettings() {
   }
 }
 
-function showAlert(message, title = "Alert") {
-  if (!alertOverlay || !alertMessage) {
-    return;
-  }
-  if (alertTitle) {
-    alertTitle.textContent = title;
-  }
-  alertMessage.textContent = message;
-  alertOverlay.classList.remove("hidden");
-}
+const alertsController = createAlertsController({
+  alertOverlay,
+  alertTitle,
+  alertMessage,
+  alertClose,
+  alertOk,
+});
+const showAlert = (...args) => alertsController.showAlert(...args);
+const closeAlert = (...args) => alertsController.closeAlert(...args);
 
-function closeAlert() {
-  if (alertOverlay) {
-    alertOverlay.classList.add("hidden");
-  }
-}
-
-if (connectionsPanel) {
-  connectionsPanel.addEventListener("click", (event) => {
-    if (event.target === connectionsPanel) {
-      closeConnectionsPanel();
-    }
-  });
-}
-
-if (connectionsPanelClose) {
-  connectionsPanelClose.addEventListener("click", closeConnectionsPanel);
-}
-
-if (connectionsButton) {
-  connectionsButton.addEventListener("click", () => {
-    openConnectionsPanel();
-  });
-}
+connectionsController?.bindUi?.();
 
 if (themeToggleButton) {
   themeToggleButton.addEventListener("click", toggleTheme);
 }
 
-if (alertClose) {
-  alertClose.addEventListener("click", closeAlert);
-}
-
-if (alertOk) {
-  alertOk.addEventListener("click", closeAlert);
-}
-
-if (alertOverlay) {
-  alertOverlay.addEventListener("click", (event) => {
-    if (event.target === alertOverlay) {
-      closeAlert();
-    }
-  });
-}
+alertsController.bindUi();
 
 // Connections panel opens via openConnectionsPanel()
 

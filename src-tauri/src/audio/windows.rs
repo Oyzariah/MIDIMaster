@@ -1,4 +1,5 @@
 use crate::audio::AudioBackend;
+use crate::device_target::{parse_device_target, DeviceTargetKind};
 use crate::model::{PlaybackDeviceInfo, SessionInfo};
 use anyhow::{anyhow, Result};
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
@@ -152,7 +153,11 @@ impl AudioBackend for WindowsAudioBackend {
         let _com = init_com()?;
         let enumerator = get_device_enumerator()?;
         let target_volume = volume.clamp(0.0, 1.0);
-        let (flow, raw_id) = parse_device_target(device_id);
+        let (kind, raw_id) = parse_device_target(device_id);
+        let flow = match kind {
+            DeviceTargetKind::Playback => eRender,
+            DeviceTargetKind::Recording => eCapture,
+        };
 
         for (device, id) in enumerate_active_devices(&enumerator, flow)? {
             if id == raw_id {
@@ -289,7 +294,11 @@ impl AudioBackend for WindowsAudioBackend {
     fn set_device_mute(&self, device_id: &str, muted: bool) -> Result<()> {
         let _com = init_com()?;
         let enumerator = get_device_enumerator()?;
-        let (flow, raw_id) = parse_device_target(device_id);
+        let (kind, raw_id) = parse_device_target(device_id);
+        let flow = match kind {
+            DeviceTargetKind::Playback => eRender,
+            DeviceTargetKind::Recording => eCapture,
+        };
 
         for (device, id) in enumerate_active_devices(&enumerator, flow)? {
             if id == raw_id {
@@ -382,16 +391,6 @@ fn list_devices_for_flow(
     }
 
     Ok(devices)
-}
-
-fn parse_device_target(device_id: &str) -> (EDataFlow, &str) {
-    if let Some(raw) = device_id.strip_prefix("recording:") {
-        return (eCapture, raw);
-    }
-    if let Some(raw) = device_id.strip_prefix("playback:") {
-        return (eRender, raw);
-    }
-    (eRender, device_id)
 }
 
 fn collect_device_sessions(

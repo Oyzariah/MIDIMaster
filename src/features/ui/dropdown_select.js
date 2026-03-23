@@ -1,0 +1,102 @@
+import {
+  closeOpenDropdowns,
+  renderLabelWithBadges,
+  wireDropdownToggle,
+} from "./dropdown_badges.js";
+
+export function createSelectDropdownShell({
+  selectEl,
+  rootClass = "",
+  title = "Select",
+}) {
+  if (!selectEl) return null;
+
+  selectEl.classList.add("hidden");
+
+  const root = document.createElement("div");
+  root.className = `target-dropdown ${rootClass}`.trim();
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "target-button";
+  button.title = title;
+
+  const display = document.createElement("span");
+  display.className = "target-display";
+
+  const caret = document.createElement("span");
+  caret.className = "caret";
+  caret.textContent = "\u25be";
+
+  button.appendChild(display);
+  button.appendChild(caret);
+
+  const menu = document.createElement("div");
+  menu.className = "target-menu hidden";
+  wireDropdownToggle({ root, menu, trigger: button });
+
+  root.appendChild(button);
+  root.appendChild(menu);
+  selectEl.insertAdjacentElement("afterend", root);
+
+  return { root, menu, display, button };
+}
+
+export function renderNativeSelectDropdown({
+  entry,
+  selectEl,
+  fallbackText = "Select",
+  closeDropdowns = () => closeOpenDropdowns({ except: null }),
+  formatOptionText = (opt) => opt.textContent || "",
+  getOptionBadges = () => [],
+  onOptionSelected = null,
+  truncateMenuLabels = false,
+  truncateDisplayLabel = true,
+}) {
+  if (!entry || !entry.menu || !entry.display || !selectEl) return;
+
+  const options = Array.from(selectEl.options || []).filter((opt) => String(opt.value || "").trim());
+  const selectedValue = String(selectEl.value || "");
+  entry.menu.innerHTML = "";
+
+  let activeOption = options.find((opt) => opt.value === selectedValue) || null;
+
+  options.forEach((opt) => {
+    const optionButton = document.createElement("button");
+    optionButton.type = "button";
+    optionButton.className = "target-option";
+    if (opt.value === selectedValue) optionButton.classList.add("selected");
+
+    const optionLabel = document.createElement("span");
+    optionLabel.className = "target-label";
+    renderLabelWithBadges(optionLabel, {
+      text: formatOptionText(opt),
+      badges: getOptionBadges(opt),
+      truncate: truncateMenuLabels,
+    });
+    optionButton.appendChild(optionLabel);
+
+    optionButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      selectEl.value = opt.value;
+      selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+      if (typeof onOptionSelected === "function") {
+        onOptionSelected(opt);
+      }
+      closeDropdowns();
+    });
+
+    entry.menu.appendChild(optionButton);
+  });
+
+  if (!activeOption && options.length > 0) {
+    activeOption = options[0];
+  }
+
+  renderLabelWithBadges(entry.display, {
+    text: activeOption ? formatOptionText(activeOption) : fallbackText,
+    badges: activeOption ? getOptionBadges(activeOption) : [],
+    truncate: truncateDisplayLabel,
+  });
+}

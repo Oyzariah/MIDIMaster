@@ -2,6 +2,31 @@ use crate::{bindings::BindingKey, model, model::Binding, AppState};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 
+fn binding_user_active(state: &AppState, key: &BindingKey, is_note: bool) -> bool {
+    if is_note {
+        return false;
+    }
+    if let Ok(states) = state.binding_state.lock() {
+        if let Some(st) = states.get(key) {
+            return st.last_update.elapsed().as_millis() < 500;
+        }
+    }
+    false
+}
+
+fn update_feedback_cache_if_changed(state: &AppState, key: &BindingKey, value: f32) -> bool {
+    if let Ok(mut feedback) = state.feedback_values.lock() {
+        if let Some(current) = feedback.get(key) {
+            if (current - value).abs() < 0.005 {
+                return false;
+            }
+        }
+        feedback.insert(key.clone(), value);
+        return true;
+    }
+    true
+}
+
 #[tauri::command]
 pub fn add_binding(state: State<AppState>, mut binding: Binding) -> Result<(), String> {
     binding.ensure_targets();
@@ -110,34 +135,12 @@ pub fn update_midi_feedback(
         if matches {
             let key = BindingKey::from_binding(binding);
 
-            // Check for active user interaction (prevent fighting the user)
             let is_note = matches!(binding.control.msg_type, model::MidiMessageType::Note);
-
-            if !is_note {
-                if let Ok(states) = state.binding_state.lock() {
-                    if let Some(state) = states.get(&key) {
-                        let elapsed = state.last_update.elapsed().as_millis();
-                        if elapsed < 500 {
-                            continue;
-                        }
-                    }
-                }
+            if binding_user_active(&state, &key, is_note) {
+                continue;
             }
 
-            // Check current value to avoid unnecessary updates
-            let mut skip = false;
-            if let Ok(mut feedback) = state.feedback_values.lock() {
-                if let Some(current) = feedback.get(&key) {
-                    if (current - value).abs() < 0.005 {
-                        skip = true;
-                    }
-                }
-                if !skip {
-                    feedback.insert(key.clone(), value);
-                }
-            }
-
-            if skip {
+            if !update_feedback_cache_if_changed(&state, &key, value) {
                 continue;
             }
 
@@ -184,19 +187,10 @@ pub fn set_binding_feedback(
 
     let silent = silent.unwrap_or(false);
 
-    let mut user_active = false;
+    let user_active;
     if action_matches_binding {
-        // Prevent fighting the user while they're moving a control.
-        // For motor faders, sending feedback while the user is actively moving causes jitter.
-        // We still want to update internal state + UI/OSD for user-driven changes.
         let is_note = matches!(binding.control.msg_type, model::MidiMessageType::Note);
-        if !is_note {
-            if let Ok(states) = state.binding_state.lock() {
-                if let Some(st) = states.get(&key) {
-                    user_active = st.last_update.elapsed().as_millis() < 500;
-                }
-            }
-        }
+        user_active = binding_user_active(&state, &key, is_note);
 
         // Ignore background (silent) sync updates while the user is actively moving.
         // Otherwise a slightly delayed poll/notification can overwrite the latched value and
@@ -205,19 +199,7 @@ pub fn set_binding_feedback(
             return Ok(());
         }
 
-        // Update current value to avoid unnecessary updates.
-        let mut skip = false;
-        if let Ok(mut feedback) = state.feedback_values.lock() {
-            if let Some(current) = feedback.get(&key) {
-                if (current - value).abs() < 0.005 {
-                    skip = true;
-                }
-            }
-            if !skip {
-                feedback.insert(key.clone(), value);
-            }
-        }
-        if skip {
+        if !update_feedback_cache_if_changed(&state, &key, value) {
             return Ok(());
         }
 
@@ -274,6 +256,25 @@ pub fn set_binding_feedback(
             if settings_enabled && !silent {
                 if let Some(osd_window) = app.get_webview_window("osd") {
                     let _ = osd_window.show();
+                    let _ = osd_window.set_always_on_top(true);
+                    #[cfg(target_os = "windows")]
+                    if let Ok(hwnd) = osd_window.hwnd() {
+                        use windows::Win32::Foundation::HWND;
+                        use windows::Win32::UI::WindowsAndMessaging::{
+                            SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+                        };
+                        unsafe {
+                            let _ = SetWindowPos(
+                                HWND(hwnd.0 as _),
+                                Some(HWND_TOPMOST),
+                                0,
+                                0,
+                                0,
+                                0,
+                                SWP_NOMOVE | SWP_NOSIZE,
+                            );
+                        }
+                    }
                     let _ = osd_window.emit("mute_update", payload.clone());
                     if let Ok(payload_json) = serde_json::to_string(&payload) {
                         let script = format!(
@@ -302,6 +303,25 @@ pub fn set_binding_feedback(
             if settings_enabled && !silent {
                 if let Some(osd_window) = app.get_webview_window("osd") {
                     let _ = osd_window.show();
+                    let _ = osd_window.set_always_on_top(true);
+                    #[cfg(target_os = "windows")]
+                    if let Ok(hwnd) = osd_window.hwnd() {
+                        use windows::Win32::Foundation::HWND;
+                        use windows::Win32::UI::WindowsAndMessaging::{
+                            SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+                        };
+                        unsafe {
+                            let _ = SetWindowPos(
+                                HWND(hwnd.0 as _),
+                                Some(HWND_TOPMOST),
+                                0,
+                                0,
+                                0,
+                                0,
+                                SWP_NOMOVE | SWP_NOSIZE,
+                            );
+                        }
+                    }
                     let _ = osd_window.emit("volume_update", payload.clone());
                     if let Ok(payload_json) = serde_json::to_string(&payload) {
                         let script = format!(

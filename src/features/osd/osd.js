@@ -1,3 +1,5 @@
+import { parseLabelParts, tagVariant } from "../ui/label_tags.js";
+
 export function createOsdFeature({
   osdElement,
   isOsdWindow,
@@ -14,45 +16,6 @@ export function createOsdFeature({
   const keyForTarget = (typeof resolveTargetKey === "function") ? resolveTargetKey : (() => null);
 
   const activeOsdCards = new Map();
-
-  function parseLabelParts(rawLabel) {
-    const label = String(rawLabel || "").trim();
-    if (!label) return { base: "", tags: [] };
-
-    const tags = [];
-    const tagPattern = /\(([^()]+)\)/g;
-    let match = null;
-    while ((match = tagPattern.exec(label)) !== null) {
-      const tag = String(match[1] || "").trim();
-      if (tag) tags.push(tag);
-    }
-
-    const base = label.replace(/\s*\([^()]+\)/g, " ").replace(/\s+/g, " ").trim();
-    return { base: base || label, tags };
-  }
-
-  function tagVariant(tag) {
-    const text = String(tag || "").toLowerCase();
-    if (!text) return "neutral";
-    if (text.includes("mix")) return "mix";
-    if (
-      text.includes("toggle")
-      || text.includes("mute")
-      || text.includes("media")
-      || text.includes("stop")
-      || text.includes("play")
-      || text.includes("next")
-      || text.includes("prev")
-      || text.includes("record")
-      || text.includes("stream")
-      || text.includes("visibility")
-      || text.includes("trigger")
-      || text.includes("action")
-    ) {
-      return "action";
-    }
-    return "neutral";
-  }
 
   function renderLabelWithTags(host, rawLabel) {
     host.innerHTML = "";
@@ -71,7 +34,7 @@ export function createOsdFeature({
       tagsWrap.className = "osd-label-tags";
       tags.forEach((tag) => {
         const badge = document.createElement("span");
-        badge.className = `osd-tag osd-tag--${tagVariant(tag)}`;
+        badge.className = `osd-tag osd-tag--${tagVariant(tag, { includeState: false })}`;
         badge.textContent = tag;
         tagsWrap.appendChild(badge);
       });
