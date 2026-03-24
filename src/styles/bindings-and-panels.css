@@ -922,7 +922,7 @@ body.dark-mode .osd-position-dot.selected {
   display: flex;
   gap: 6px;
   align-items: center;
-  justify-self: end;
+  justify-self: start;
 }
 
 .binding-item:hover {
@@ -958,7 +958,7 @@ body.dragging-binding {
   display: flex;
   gap: 6px;
   align-items: center;
-  justify-self: end;
+  justify-self: start;
 }
 
 .binding-drag {
