@@ -895,14 +895,14 @@ body.dark-mode .osd-position-dot.selected {
   padding: 6px;
   border: 1px solid #e3e6f0;
   border-radius: 8px;
-  background: #f4f5fa;
+  background: #eef1f8;
 }
 
 .binding-add-button {
   width: 100%;
   background: transparent;
   color: #2b2d42;
-  border: 1px dashed #c7cde2;
+  border: none;
   border-radius: 6px;
   padding: 4px 10px;
   font-size: 12px;
@@ -913,7 +913,12 @@ body.dark-mode .osd-position-dot.selected {
 }
 
 .binding-add-button:hover {
-  background: #e9ecf6;
+  background: #e6eaf4;
+}
+
+.binding-add-button:focus-visible {
+  outline: none;
+  background: #e6eaf4;
 }
 
 

@@ -241,7 +241,8 @@ body.dark-mode .binding-add-footer {
 
 body.dark-mode .binding-add-button {
   color: #dbe5ff;
-  border-color: #4f628e;
+  background: transparent;
+  border: none;
 }
 
 body.dark-mode .binding-add-button:hover {
