@@ -6,7 +6,7 @@ MIDIMaster is a desktop app that lets you bind MIDI controls (faders/knobs/butto
 
 - System audio (master, focused app, per-app sessions)
 - Audio devices (playback/recording)
-- Integrations provided by runtime plugins (for example: OBS Studio, Elgato Wave Link)
+- Integrations provided by runtime plugins (for example: OBS Studio, Elgato Wave Link, Philips Hue)
 
 Integrations are plugin-driven. Plugins can be installed at runtime (no rebuild required) and can ship their own:
 
@@ -40,7 +40,7 @@ config directory.
 Third-party product names, trademarks, and logos are property of their respective owners and are
 used for identification purposes only.
 
-This project is not affiliated with, endorsed by, or sponsored by OBS Project, Elgato, Discord,
+This project is not affiliated with, endorsed by, or sponsored by OBS Project, Elgato, Signify, Discord,
 or any other third-party vendor.
 
 Some third-party logos are included in this repository and shown in the UI (for example in the

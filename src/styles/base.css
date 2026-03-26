@@ -475,6 +475,15 @@ body.dark-mode .connection-button:hover {
   background: #5e77ae;
 }
 
+body.dark-mode .connection-button.danger {
+  background: #d55245;
+  color: #fff;
+}
+
+body.dark-mode .connection-button.danger:hover {
+  background: #c0473b;
+}
+
 body.dark-mode .settings-reset {
   background: #5e2a2d;
   border-color: #8f4348;

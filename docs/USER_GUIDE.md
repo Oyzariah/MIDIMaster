@@ -12,7 +12,7 @@ MIDIMaster binds controls on your MIDI device (faders, knobs, buttons) to target
 - `Focus` (the currently focused application/session)
 - Per-application audio sessions
 - Playback / recording devices
-- Integrations provided by plugins (OBS Studio, Wave Link, and third-party integrations)
+- Integrations provided by plugins (OBS Studio, Wave Link, Philips Hue, and third-party integrations)
 
 When a target changes, MIDIMaster can send feedback back to your MIDI controller (for motorized faders, LEDs, etc.).
 
@@ -93,6 +93,7 @@ Examples:
 
 - OBS Studio audio input volume
 - Wave Link channel or mix volume
+- Philips Hue light/group brightness and on/off
 
 Integrations are implemented by plugins and can be installed/uninstalled without rebuilding MIDIMaster.
 
@@ -173,7 +174,17 @@ In `Plugins -> Installed` you can:
 - Enable/disable plugins
 - Uninstall third-party plugins
 
-Bundled plugins (for example, OBS Studio and Wave Link) cannot be uninstalled, but can be disabled.
+Bundled plugins (for example, OBS Studio, Wave Link, and Philips Hue) cannot be uninstalled, but can be disabled.
+
+### Philips Hue (Bundled) Quick Setup
+
+1. Open `Plugins` and select `Philips Hue`.
+2. Click `Discover` (or manually enter your bridge IP).
+3. Press the physical button on your Hue Bridge.
+4. Click `Pair`.
+5. Click `Connect`.
+
+Once connected, Hue lights and groups appear in the Integrations target picker.
 
 ### Where Plugins Are Stored (Advanced)
 

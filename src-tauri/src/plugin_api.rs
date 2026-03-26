@@ -5,12 +5,14 @@ use std::{
     fs,
     io::Cursor,
     path::{Path, PathBuf},
+    process::Command,
+    time::Duration,
 };
 use tauri::AppHandle;
 
 use crate::app_paths::app_data_root_dir;
 
-const BUNDLED_PLUGIN_IDS: &[&str] = &["obs", "wavelink"];
+const BUNDLED_PLUGIN_IDS: &[&str] = &["hue", "obs", "wavelink"];
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginManifest {
@@ -229,6 +231,250 @@ fn safe_rel_path(rel: &str) -> Result<PathBuf, String> {
         }
     }
     Ok(p.to_path_buf())
+}
+
+fn validate_hue_bridge_addr(addr: &str) -> Result<String, String> {
+    let trimmed = addr.trim();
+    if trimmed.is_empty() {
+        return Err("Bridge address is required".to_string());
+    }
+    // Accept common IP/hostname characters only.
+    let ok = trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == ':');
+    if !ok {
+        return Err("Bridge address contains invalid characters".to_string());
+    }
+    Ok(trimmed.to_string())
+}
+
+fn validate_hue_username(username: &str) -> Result<String, String> {
+    let trimmed = username.trim();
+    if trimmed.is_empty() {
+        return Err("Hue app key is required".to_string());
+    }
+    let ok = trimmed
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    if !ok {
+        return Err("Hue app key contains invalid characters".to_string());
+    }
+    Ok(trimmed.to_string())
+}
+
+fn validate_hue_path(path: &str) -> Result<String, String> {
+    let trimmed = path.trim();
+    if !trimmed.starts_with('/') {
+        return Err("Hue API path must start with '/'".to_string());
+    }
+    if trimmed.contains("..") {
+        return Err("Invalid Hue API path".to_string());
+    }
+    Ok(trimmed.to_string())
+}
+
+#[tauri::command]
+pub fn hue_discover_bridges(candidate_ips: Option<Vec<String>>) -> Result<Vec<String>, String> {
+    fn is_hue_oui(mac: &str) -> bool {
+        let norm = mac.trim().to_ascii_lowercase().replace('-', ":");
+        // Known Signify/Philips Hue OUI prefixes.
+        norm.starts_with("00:17:88") || norm.starts_with("ec:b5:fa") || norm.starts_with("00:09:2d")
+    }
+
+    fn arp_hue_candidate_ips() -> Vec<String> {
+        let mut out = Vec::new();
+        let cmd_out = Command::new("arp").arg("-a").output();
+        let Ok(raw) = cmd_out else {
+            return out;
+        };
+        if !raw.status.success() {
+            return out;
+        }
+        let text = String::from_utf8_lossy(&raw.stdout);
+        for line in text.lines() {
+            let cols: Vec<&str> = line.split_whitespace().collect();
+            if cols.len() < 2 {
+                continue;
+            }
+            let ip = cols[0].trim();
+            let mac = cols[1].trim();
+            if ip.parse::<std::net::Ipv4Addr>().is_ok() && is_hue_oui(mac) {
+                out.push(ip.to_string());
+            }
+        }
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    fn fetch_ips(url: &str) -> Result<Vec<String>, String> {
+        let agent = ureq::AgentBuilder::new()
+            .timeout(Duration::from_millis(2500))
+            .build();
+        let resp = agent.get(url).call().map_err(|e| e.to_string())?;
+        let json: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
+        let arr = json
+            .as_array()
+            .ok_or_else(|| "Unexpected discovery response".to_string())?;
+        let mut ips = Vec::new();
+        for item in arr {
+            let ip = item
+                .get("internalipaddress")
+                .and_then(|v| v.as_str())
+                .unwrap_or_default()
+                .trim();
+            if !ip.is_empty() {
+                ips.push(ip.to_string());
+            }
+        }
+        Ok(ips)
+    }
+
+    fn probe_local_bridge(ip: &str) -> Result<bool, String> {
+        let addr = validate_hue_bridge_addr(ip)?;
+        let url = format!("http://{}/api/config", addr);
+        let agent = ureq::AgentBuilder::new()
+            .timeout(Duration::from_millis(1500))
+            .build();
+        let resp = agent.get(&url).call().map_err(|e| e.to_string())?;
+        let json: serde_json::Value = resp.into_json().map_err(|e| e.to_string())?;
+        let has_bridge_id = json
+            .get("bridgeid")
+            .and_then(|v| v.as_str())
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false);
+        let has_name = json
+            .get("name")
+            .and_then(|v| v.as_str())
+            .map(|s| !s.trim().is_empty())
+            .unwrap_or(false);
+        Ok(has_bridge_id || has_name)
+    }
+
+    let mut out: Vec<String> = Vec::new();
+    let mut last_err: Option<String> = None;
+    let mut cloud_success = false;
+    let mut cloud_had_error = false;
+
+    for url in [
+        "https://discovery.meethue.com/",
+        "https://www.meethue.com/api/nupnp",
+    ] {
+        match fetch_ips(url) {
+            Ok(mut ips) => {
+                cloud_success = true;
+                if ips.is_empty() {
+                    eprintln!("[hue] cloud discovery empty: {}", url);
+                } else {
+                    eprintln!(
+                        "[hue] cloud discovery success: {} -> {} bridge(s)",
+                        url,
+                        ips.len()
+                    );
+                }
+                out.append(&mut ips);
+            }
+            Err(e) => {
+                cloud_had_error = true;
+                eprintln!("[hue] cloud discovery failed: {} ({})", url, e);
+                last_err = Some(e);
+            }
+        }
+    }
+
+    let mut local_candidates: Vec<String> = Vec::new();
+    if let Some(candidates) = candidate_ips {
+        for ip in candidates {
+            local_candidates.push(ip);
+        }
+    }
+    for ip in arp_hue_candidate_ips() {
+        local_candidates.push(ip);
+    }
+    local_candidates.sort();
+    local_candidates.dedup();
+
+    for ip in local_candidates {
+        let trimmed = ip.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        match probe_local_bridge(trimmed) {
+            Ok(true) => {
+                eprintln!("[hue] local probe success: {}", trimmed);
+                out.push(trimmed.to_string());
+            }
+            Ok(false) => {
+                eprintln!("[hue] local probe empty/non-hue: {}", trimmed);
+            }
+            Err(e) => {
+                // Local probes are a best-effort fallback and should not make
+                // discovery fail hard when cloud endpoints are unavailable.
+                eprintln!("[hue] local probe failed for {}: {}", trimmed, e);
+            }
+        }
+    }
+
+    out.sort();
+    out.dedup();
+
+    if !cloud_success && cloud_had_error && out.is_empty() {
+        return Err(last_err.unwrap_or_else(|| "No Hue bridge discovered".to_string()));
+    }
+
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn hue_pair_bridge(
+    bridge_ip: String,
+    devicetype: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let bridge = validate_hue_bridge_addr(&bridge_ip)?;
+    let dtype_raw = devicetype.unwrap_or_else(|| "midimaster#desktop".to_string());
+    let dtype = if dtype_raw.trim().is_empty() {
+        "midimaster#desktop".to_string()
+    } else {
+        dtype_raw.trim().to_string()
+    };
+    let url = format!("http://{}/api", bridge);
+    let resp = ureq::post(&url)
+        .set("Content-Type", "application/json")
+        .send_json(serde_json::json!({ "devicetype": dtype }))
+        .map_err(|e| e.to_string())?;
+    resp.into_json().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hue_api_get(
+    bridge_ip: String,
+    username: String,
+    path: String,
+) -> Result<serde_json::Value, String> {
+    let bridge = validate_hue_bridge_addr(&bridge_ip)?;
+    let user = validate_hue_username(&username)?;
+    let p = validate_hue_path(&path)?;
+    let url = format!("http://{}/api/{}{}", bridge, user, p);
+    let resp = ureq::get(&url).call().map_err(|e| e.to_string())?;
+    resp.into_json().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn hue_api_put(
+    bridge_ip: String,
+    username: String,
+    path: String,
+    body: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let bridge = validate_hue_bridge_addr(&bridge_ip)?;
+    let user = validate_hue_username(&username)?;
+    let p = validate_hue_path(&path)?;
+    let url = format!("http://{}/api/{}{}", bridge, user, p);
+    let resp = ureq::put(&url)
+        .set("Content-Type", "application/json")
+        .send_json(body)
+        .map_err(|e| e.to_string())?;
+    resp.into_json().map_err(|e| e.to_string())
 }
 
 #[tauri::command]

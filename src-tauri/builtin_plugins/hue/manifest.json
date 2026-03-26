@@ -1,0 +1,8 @@
+{
+  "id": "hue",
+  "name": "Philips Hue",
+  "version": "0.1.0",
+  "api_version": "1",
+  "entry": "plugin.mjs",
+  "icon": "HueLogo.svg"
+}

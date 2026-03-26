@@ -77,8 +77,9 @@ use tauri::{
 use tokio::time::sleep;
 
 use plugin_api::{
-    ensure_builtin_plugin, get_plugins_dir, install_plugin_package, list_plugins,
-    read_plugin_base64, read_plugin_text, set_plugin_enabled, uninstall_plugin,
+    ensure_builtin_plugin, get_plugins_dir, hue_api_get, hue_api_put, hue_discover_bridges,
+    hue_pair_bridge, install_plugin_package, list_plugins, read_plugin_base64, read_plugin_text,
+    set_plugin_enabled, uninstall_plugin,
 };
 use std::thread::sleep as thread_sleep;
 use std::time::Duration as StdDuration;
@@ -1120,6 +1121,16 @@ fn main() {
             // Ensure bundled plugins exist in the runtime plugins directory.
             ensure_builtin_plugin(
                 &app.handle(),
+                "hue",
+                include_str!("../builtin_plugins/hue/manifest.json"),
+                include_str!("../builtin_plugins/hue/plugin.mjs"),
+                &[(
+                    "HueLogo.svg",
+                    include_bytes!("../builtin_plugins/hue/HueLogo.svg") as &[u8],
+                )],
+            );
+            ensure_builtin_plugin(
+                &app.handle(),
                 "wavelink",
                 include_str!("../builtin_plugins/wavelink/manifest.json"),
                 include_str!("../builtin_plugins/wavelink/plugin.mjs"),
@@ -1411,6 +1422,10 @@ fn main() {
             install_plugin_package,
             uninstall_plugin,
             set_plugin_enabled,
+            hue_discover_bridges,
+            hue_pair_bridge,
+            hue_api_get,
+            hue_api_put,
             ws_open,
             ws_send,
             ws_close,

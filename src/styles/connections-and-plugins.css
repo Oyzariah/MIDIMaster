@@ -842,6 +842,86 @@
   background: #ccd1e0;
 }
 
+.hue-setup-card {
+  border: 1px solid #dfe8f9;
+  border-radius: 12px;
+  background: #f7faff;
+}
+
+.hue-tab-strip {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #eef4ff;
+  border: 1px solid #d8e4fb;
+}
+
+.hue-mode-btn {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid #d7e1f5;
+  font-size: 12px;
+  font-weight: 600;
+  color: #32435e;
+  background: #edf2fb;
+  cursor: pointer;
+}
+
+.hue-mode-btn.active {
+  background: #2a5ea9;
+  color: #fff;
+  border-color: #2a5ea9;
+}
+
+.hue-refresh-btn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid #c7d6f4;
+  background: #eef4ff;
+  color: #2d4670;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hue-summary-text {
+  font-size: 13px;
+  color: #2f4367;
+}
+
+body.dark-mode .hue-setup-card {
+  border-color: #324564;
+  background: #1f2a40;
+}
+
+body.dark-mode .hue-tab-strip {
+  background: #22304a;
+  border-color: #3b5275;
+}
+
+body.dark-mode .hue-mode-btn {
+  background: #2a3958;
+  border-color: #456089;
+  color: #d9e5ff;
+}
+
+body.dark-mode .hue-mode-btn.active {
+  background: #4f70a7;
+  border-color: #4f70a7;
+  color: #f5f8ff;
+}
+
+body.dark-mode .hue-refresh-btn {
+  background: #2b3a57;
+  border-color: #496796;
+  color: #dbe8ff;
+}
+
+body.dark-mode .hue-summary-text {
+  color: #d8e4fb;
+}
+
 /* Placeholder State */
 .connection-placeholder {
   display: flex;

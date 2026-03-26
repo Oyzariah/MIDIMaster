@@ -406,8 +406,16 @@ export function createTargetsFeature({
       kind: "placeholder",
     };
 
-    const actionLabel = (action) => {
-      if (action === "ToggleMute") return "Toggle Mute";
+    const integrationFromTarget = (target) => {
+      return target?.Integration || target?.integration || null;
+    };
+
+    const actionLabel = (action, target = null) => {
+      const integ = integrationFromTarget(target);
+      if (action === "ToggleMute") {
+        if (integ?.integration_id === "hue") return "Toggle";
+        return "Toggle Mute";
+      }
       if (action === "MediaPlayPause") return "Media Play/Pause";
       if (action === "MediaNextTrack") return "Media Next Track";
       if (action === "MediaPrevTrack") return "Media Previous Track";
@@ -429,7 +437,7 @@ export function createTargetsFeature({
       const label = document.createElement("span");
       label.className = "target-chip-label";
       const actionTags = (isBindingButton && selectedAction)
-        ? [actionLabel(selectedAction)]
+        ? [actionLabel(selectedAction, target)]
         : [];
       renderLabelFromRawWithTags(label, {
         rawLabel: displayOption.label,
@@ -563,6 +571,35 @@ export function createTargetsFeature({
       event.stopPropagation();
       const { options } = buildTargetOptions(selectedTargets[0] || currentTarget, isBindingButton);
 
+      const buildButtonActionOptions = (targetOption) => {
+        if (targetOption?.kind === "media-control") {
+          return [
+            { label: "Media Play/Pause", value: "MediaPlayPause", kind: "action", icon_data: mediaPlayPauseIconData },
+            { label: "Media Next Track", value: "MediaNextTrack", kind: "action", icon_data: mediaNextTrackIconData },
+            { label: "Media Previous Track", value: "MediaPrevTrack", kind: "action", icon_data: mediaPrevTrackIconData },
+            { label: "Media Stop", value: "MediaStop", kind: "action", icon_data: mediaStopIconData },
+          ];
+        }
+
+        const integ = targetOption?.target?.Integration || targetOption?.target?.integration;
+        if (integ?.integration_id === "hue") {
+          return [{ label: "Toggle", value: "ToggleMute", kind: "action" }];
+        }
+        if (integ?.integration_id === "wavelink") {
+          const k = String(integ.kind || "").toLowerCase();
+          // Wave Link source targets should only allow mute toggle.
+          if (k === "mix" || k === "channel" || k === "channel_mix") {
+            return [{ label: "Toggle Mute", value: "ToggleMute", kind: "action" }];
+          }
+          return [{ label: "Toggle Mute", value: "ToggleMute", kind: "action" }];
+        }
+
+        return [
+          { label: "Trigger", value: "Volume", kind: "action" },
+          { label: "Toggle Mute", value: "ToggleMute", kind: "action" },
+        ];
+      };
+
       const openRootTargetPanel = () => {
         openTargetPanel(
           options,
@@ -575,16 +612,7 @@ export function createTargetsFeature({
             }
 
             if (isBindingButton) {
-              const actionOptions = targetOption.kind === "media-control"
-                ? [
-                  { label: "Media Play/Pause", value: "MediaPlayPause", kind: "action", icon_data: mediaPlayPauseIconData },
-                  { label: "Media Next Track", value: "MediaNextTrack", kind: "action", icon_data: mediaNextTrackIconData },
-                  { label: "Media Previous Track", value: "MediaPrevTrack", kind: "action", icon_data: mediaPrevTrackIconData },
-                  { label: "Media Stop", value: "MediaStop", kind: "action", icon_data: mediaStopIconData },
-                ]
-                : [
-                  { label: "Toggle Mute", value: "ToggleMute", kind: "action" },
-                ];
+              const actionOptions = buildButtonActionOptions(targetOption);
               setTimeout(() => {
                 openTargetPanel(actionOptions, selectedAction, "action", (actionOption) => {
                   selectOption(targetOption, actionOption.value);
@@ -661,10 +689,7 @@ export function createTargetsFeature({
             }
 
             if (isBindingButton) {
-              const actionOptions = [
-                { label: "Trigger", value: "Volume", kind: "action" },
-                { label: "Toggle Mute", value: "ToggleMute", kind: "action" },
-              ];
+              const actionOptions = buildButtonActionOptions(opt);
               setTimeout(() => {
                 openTargetPanel(actionOptions, selectedAction, "action", (actionOption) => {
                   selectOption(opt, actionOption.value);
