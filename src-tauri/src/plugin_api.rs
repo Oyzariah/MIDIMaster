@@ -14,6 +14,9 @@ use crate::app_paths::app_data_root_dir;
 
 const BUNDLED_PLUGIN_IDS: &[&str] = &["hue", "obs", "wavelink"];
 
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginManifest {
     pub id: String,
@@ -282,8 +285,19 @@ pub fn hue_discover_bridges(candidate_ips: Option<Vec<String>>) -> Result<Vec<St
     }
 
     fn arp_hue_candidate_ips() -> Vec<String> {
+        #[cfg(windows)]
+        use std::os::windows::process::CommandExt;
+
         let mut out = Vec::new();
-        let cmd_out = Command::new("arp").arg("-a").output();
+        let mut cmd = Command::new("arp");
+        cmd.arg("-a");
+
+        #[cfg(windows)]
+        {
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let cmd_out = cmd.output();
         let Ok(raw) = cmd_out else {
             return out;
         };
