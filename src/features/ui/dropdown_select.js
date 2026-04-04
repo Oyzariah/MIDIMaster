@@ -90,10 +90,6 @@ export function renderNativeSelectDropdown({
     entry.menu.appendChild(optionButton);
   });
 
-  if (!activeOption && options.length > 0) {
-    activeOption = options[0];
-  }
-
   renderLabelWithBadges(entry.display, {
     text: activeOption ? formatOptionText(activeOption) : fallbackText,
     badges: activeOption ? getOptionBadges(activeOption) : [],

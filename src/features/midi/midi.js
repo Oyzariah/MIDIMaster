@@ -716,14 +716,42 @@ export function createMidiFeature({
       outputDeviceName: savedOutputName,
     });
 
+    const inputs = Array.isArray(deviceData?.inputs) ? deviceData.inputs : [];
+    const outputs = Array.isArray(deviceData?.outputs) ? deviceData.outputs : [];
+
     if (!savedInputId || !savedOutputId) {
+      // First-run heuristic:
+      // - if exactly one input exists, assume it
+      // - prefer output with identical name; otherwise prefer a non-GS output
+      if (inputs.length === 1 && outputs.length > 0) {
+        const inputMatch = inputs[0];
+        const outputMatch = outputs.find((o) => o?.name === inputMatch?.name)
+          || outputs.find((o) => !String(o?.name || "").toLowerCase().includes("microsoft gs wavetable"))
+          || outputs[0];
+
+        if (inputMatch && outputMatch) {
+          try {
+            if (d.midiSelect) d.midiSelect.value = inputMatch.id;
+            if (d.midiOutputSelect) d.midiOutputSelect.value = outputMatch.id;
+            await startWithResolvedDevice(inputMatch, outputMatch, {
+              inputName: inputMatch?.name || "",
+              outputName: outputMatch?.name || "",
+              auto: true,
+            });
+            if (d.midiStatus) d.midiStatus.textContent = "Auto-connected first available MIDI pair.";
+            return { connected: true, autoSelected: true };
+          } catch (error) {
+            if (d.midiStatus) d.midiStatus.textContent = `Connect failed: ${error}`;
+            renderDeviceDropdowns();
+            return { connected: false, reason: "auto_select_connect_failed" };
+          }
+        }
+      }
+
       if (d.midiStatus) d.midiStatus.textContent = "Select input and output devices.";
       renderDeviceDropdowns();
       return { connected: false, reason: "missing_saved" };
     }
-
-    const inputs = Array.isArray(deviceData?.inputs) ? deviceData.inputs : [];
-    const outputs = Array.isArray(deviceData?.outputs) ? deviceData.outputs : [];
 
     let inputMatch = findPreferredDevice(inputs, savedInputId, savedInputName);
     let outputMatch = savedOutputId ? findPreferredDevice(outputs, savedOutputId, savedOutputName) : null;
