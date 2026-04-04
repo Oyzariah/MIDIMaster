@@ -1,12 +1,16 @@
 use crate::model::{DeviceInfo, MidiEvent};
+use crate::run_logger;
 use anyhow::{anyhow, Result};
 use midir::{
     Ignore, MidiInput, MidiInputConnection, MidiInputPort, MidiOutput, MidiOutputConnection,
     MidiOutputPort,
 };
+use std::sync::{Mutex, OnceLock};
 
 const MIDI_PORT_PREFIX: &str = "midi:";
 const LOG_MIDI_MESSAGES: bool = false;
+static INPUT_DEVICE_SIGNATURE: OnceLock<Mutex<String>> = OnceLock::new();
+static OUTPUT_DEVICE_SIGNATURE: OnceLock<Mutex<String>> = OnceLock::new();
 
 pub struct MidiManager {
     input_connection: Option<MidiInputConnection<()>>,
@@ -32,20 +36,18 @@ impl MidiManager {
     pub fn list_devices(&self) -> Result<Vec<DeviceInfo>> {
         let midi_in = MidiInput::new("MIDIMaster")?;
         let ports = midi_in.ports();
-        println!("Found {} MIDI input ports", ports.len());
         let mut devices = Vec::new();
         for (index, port) in ports.iter().enumerate() {
             let name = midi_in
                 .port_name(port)
                 .unwrap_or_else(|_| format!("Device {}", index));
-            println!("MIDI port {}: {}", index, name);
             devices.push(DeviceInfo {
                 id: format!("{}{}", MIDI_PORT_PREFIX, index),
                 name,
             });
         }
         if devices.is_empty() {
-            println!("MIDI: retrying device enumeration");
+            run_logger::warn("midi", "input_enumeration_empty", "retrying input enumeration");
             let midi_in_retry = MidiInput::new("MIDIMaster")?;
             let ports = midi_in_retry.ports();
             for (index, port) in ports.iter().enumerate() {
@@ -58,24 +60,24 @@ impl MidiManager {
                 });
             }
         }
+        log_inventory_if_changed("input", &devices);
         Ok(devices)
     }
 
     pub fn list_output_devices(&self) -> Result<Vec<DeviceInfo>> {
         let midi_out = MidiOutput::new("MIDIMaster")?;
         let ports = midi_out.ports();
-        println!("Found {} MIDI output ports", ports.len());
         let mut devices = Vec::new();
         for (index, port) in ports.iter().enumerate() {
             let name = midi_out
                 .port_name(port)
                 .unwrap_or_else(|_| format!("Output {}", index));
-            println!("MIDI output port {}: {}", index, name);
             devices.push(DeviceInfo {
                 id: format!("{}{}", MIDI_PORT_PREFIX, index),
                 name,
             });
         }
+        log_inventory_if_changed("output", &devices);
         Ok(devices)
     }
 
@@ -96,7 +98,11 @@ impl MidiManager {
         self.output_connections = vec![output_connection];
         self.active_output_device = Some(output_device_id.to_string());
         self.reconnect_failures = 0; // Reset failure count on successful connect
-        println!("MIDI Output connected: {}", output_device_id);
+        run_logger::info(
+            "midi",
+            "output_connected",
+            &format!("output_device_id={}", output_device_id),
+        );
         Ok(())
     }
 
@@ -123,6 +129,14 @@ impl MidiManager {
 
         // Output setup
         self.connect_output(output_device_id)?;
+        run_logger::info(
+            "midi",
+            "start_device_requested",
+            &format!(
+                "input_device_id={} output_device_id={}",
+                input_device_id, output_device_id
+            ),
+        );
 
         let event_device_id = input_device_id.to_string();
         let active_device = input_device_id.to_string(); // we use input device ID as the primary ID for the session
@@ -132,7 +146,7 @@ impl MidiManager {
             "midimaster-input",
             move |_timestamp, message, _| {
                 if LOG_MIDI_MESSAGES {
-                    println!("MIDI message: {:?}", message);
+                    run_logger::debug("midi", "raw_message", &format!("bytes={:?}", message));
                 }
                 if let Some(event) = parse_midi_message(&event_device_id, message) {
                     on_event(event);
@@ -143,11 +157,27 @@ impl MidiManager {
 
         self.input_connection = Some(connection);
         self.active_device = Some(active_device);
+        run_logger::info(
+            "midi",
+            "input_connected",
+            &format!("input_device_id={}", input_device_id),
+        );
 
         Ok(())
     }
 
     pub fn stop(&mut self) {
+        run_logger::info(
+            "midi",
+            "stop_device",
+            &format!(
+                "had_input={} had_output={} active_input={} active_output={}",
+                self.input_connection.is_some(),
+                !self.output_connections.is_empty(),
+                self.active_device.as_deref().unwrap_or(""),
+                self.active_output_device.as_deref().unwrap_or("")
+            ),
+        );
         self.input_connection.take();
         self.output_connections.clear();
         self.active_device = None;
@@ -164,6 +194,15 @@ impl MidiManager {
     ) -> Result<()> {
         // We only send feedback if the requested device matches our active ONE
         if self.active_device.as_deref() != Some(device_id) {
+            run_logger::debug(
+                "midi",
+                "feedback_skipped_device_mismatch",
+                &format!(
+                    "requested_device={} active_device={}",
+                    device_id,
+                    self.active_device.as_deref().unwrap_or("")
+                ),
+            );
             return Ok(());
         }
 
@@ -191,6 +230,11 @@ impl MidiManager {
 
         // Early exit if no output is connected yet (prevents spam on startup)
         if self.active_output_device.is_none() {
+            run_logger::debug(
+                "midi",
+                "feedback_skipped_no_output",
+                &format!("device_id={} controller={}", device_id, controller),
+            );
             return Ok(());
         }
 
@@ -214,11 +258,19 @@ impl MidiManager {
 
             if !should_attempt || self.reconnect_failures >= MAX_RECONNECT_FAILURES {
                 // Silently skip reconnection - either too soon or too many failures
+                run_logger::warn(
+                    "midi",
+                    "output_reconnect_skipped",
+                    &format!(
+                        "cooldown_ready={} reconnect_failures={} max_failures={}",
+                        should_attempt, self.reconnect_failures, MAX_RECONNECT_FAILURES
+                    ),
+                );
                 return Ok(());
             }
 
             self.last_reconnect_attempt = Some(std::time::Instant::now());
-            println!("MIDI: Output failed, attempting reconnect...");
+            run_logger::warn("midi", "output_send_failed", "attempting reconnect");
 
             if let Some(output_id) = self.active_output_device.clone() {
                 // Clear old connections first to release the port
@@ -226,26 +278,46 @@ impl MidiManager {
 
                 match self.connect_output(&output_id) {
                     Ok(_) => {
-                        println!("MIDI: Reconnected to output {}", output_id);
+                        run_logger::info(
+                            "midi",
+                            "output_reconnected",
+                            &format!("output_device_id={}", output_id),
+                        );
                         if let Some(conn) = self.output_connections.get_mut(0) {
                             if let Err(e) = conn.send(&message) {
-                                println!("MIDI: Retry send failed: {}", e);
+                                run_logger::error(
+                                    "midi",
+                                    "retry_send_failed",
+                                    &format!("output_device_id={} error={}", output_id, e),
+                                );
                             } else {
-                                println!("MIDI: Retry send successful");
+                                run_logger::info(
+                                    "midi",
+                                    "retry_send_successful",
+                                    &format!("output_device_id={}", output_id),
+                                );
                             }
                         }
                     }
                     Err(e) => {
                         self.reconnect_failures += 1;
                         if self.reconnect_failures >= MAX_RECONNECT_FAILURES {
-                            println!(
-                                "MIDI: Reconnection failed after {} attempts, giving up: {}",
-                                self.reconnect_failures, e
+                            run_logger::error(
+                                "midi",
+                                "output_reconnect_give_up",
+                                &format!(
+                                    "attempts={} error={}",
+                                    self.reconnect_failures, e
+                                ),
                             );
                         } else {
-                            println!(
-                                "MIDI: Reconnection failed (attempt {}): {}",
-                                self.reconnect_failures, e
+                            run_logger::warn(
+                                "midi",
+                                "output_reconnect_failed",
+                                &format!(
+                                    "attempt={} error={}",
+                                    self.reconnect_failures, e
+                                ),
                             );
                         }
                     }
@@ -253,6 +325,41 @@ impl MidiManager {
             }
         }
         Ok(())
+    }
+}
+
+fn log_inventory_if_changed(kind: &str, devices: &[DeviceInfo]) {
+    let signature = devices
+        .iter()
+        .map(|device| format!("{}:{}", device.id, device.name))
+        .collect::<Vec<_>>()
+        .join("|");
+
+    let slot = if kind == "input" {
+        INPUT_DEVICE_SIGNATURE.get_or_init(|| Mutex::new(String::new()))
+    } else {
+        OUTPUT_DEVICE_SIGNATURE.get_or_init(|| Mutex::new(String::new()))
+    };
+
+    if let Ok(mut last) = slot.lock() {
+        if *last == signature {
+            return;
+        }
+        *last = signature;
+    }
+
+    run_logger::info(
+        "midi",
+        &format!("{}_inventory_changed", kind),
+        &format!("port_count={}", devices.len()),
+    );
+
+    for (index, device) in devices.iter().enumerate() {
+        run_logger::debug(
+            "midi",
+            &format!("{}_port", kind),
+            &format!("index={} id={} name={}", index, device.id, device.name),
+        );
     }
 }
 

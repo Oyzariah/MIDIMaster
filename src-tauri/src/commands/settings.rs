@@ -1,5 +1,6 @@
-use crate::{app_settings::AppSettings, collect_monitor_descriptors, model::OsdSettings, AppState};
+use crate::{app_paths::app_data_root_dir, app_settings::AppSettings, collect_monitor_descriptors, model::OsdSettings, run_logger, AppState};
 use serde::Serialize;
+use std::process::Command;
 use tauri::{AppHandle, State};
 
 #[derive(Clone, Serialize)]
@@ -43,6 +44,18 @@ pub fn update_osd_settings(
     monitor_id: Option<String>,
     anchor: String,
 ) -> Result<(), String> {
+    run_logger::info(
+        "settings",
+        "update_osd_settings",
+        &format!(
+            "enabled={} monitor_index={} monitor_name={} monitor_id={} anchor={}",
+            enabled,
+            monitor_index,
+            monitor_name.as_deref().unwrap_or(""),
+            monitor_id.as_deref().unwrap_or(""),
+            anchor
+        ),
+    );
     let mut settings = state
         .osd_settings
         .lock()
@@ -87,6 +100,14 @@ pub fn update_app_settings(
     minimize_to_tray: bool,
     exit_to_tray: bool,
 ) -> Result<(), String> {
+    run_logger::info(
+        "settings",
+        "update_app_settings",
+        &format!(
+            "start_with_windows={} start_in_tray={} minimize_to_tray={} exit_to_tray={}",
+            start_with_windows, start_in_tray, minimize_to_tray, exit_to_tray
+        ),
+    );
     let mut settings = state
         .app_settings
         .lock()
@@ -136,6 +157,17 @@ pub fn set_midi_device_preferences(
     input_device_name: Option<String>,
     output_device_name: Option<String>,
 ) -> Result<(), String> {
+    run_logger::info(
+        "settings",
+        "set_midi_device_preferences",
+        &format!(
+            "input_id={} output_id={} input_name={} output_name={}",
+            input_device_id,
+            output_device_id,
+            input_device_name.as_deref().unwrap_or(""),
+            output_device_name.as_deref().unwrap_or("")
+        ),
+    );
     let mut settings = state
         .app_settings
         .lock()
@@ -156,6 +188,7 @@ pub fn set_midi_device_preferences(
 
 #[tauri::command]
 pub fn clear_midi_device_preferences(state: State<AppState>) -> Result<(), String> {
+    run_logger::info("settings", "clear_midi_device_preferences", "");
     let mut settings = state
         .app_settings
         .lock()
@@ -201,6 +234,7 @@ pub fn set_active_profile_preference(
 
 #[tauri::command]
 pub fn reset_app_data(app: AppHandle, state: State<AppState>) -> Result<(), String> {
+    run_logger::warn("settings", "reset_app_data_requested", "");
     state
         .profile_store
         .clear_all()
@@ -233,4 +267,30 @@ pub fn reset_app_data(app: AppHandle, state: State<AppState>) -> Result<(), Stri
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn open_logs_folder(app: AppHandle) -> Result<String, String> {
+    let config_dir = app_data_root_dir(&app)?;
+    let logs_dir = crate::run_logger::logs_dir_from_app_data(&config_dir);
+    std::fs::create_dir_all(&logs_dir).map_err(|err| err.to_string())?;
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(&logs_dir)
+            .spawn()
+            .map_err(|err| err.to_string())?;
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let msg = "Open logs folder is currently supported only on Windows".to_string();
+        run_logger::warn("settings", "open_logs_folder_unsupported", &msg);
+        return Err(msg);
+    }
+
+    let path = logs_dir.display().to_string();
+    run_logger::info("settings", "open_logs_folder", &format!("path={}", path));
+    Ok(path)
 }

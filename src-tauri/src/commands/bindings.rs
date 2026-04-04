@@ -1,4 +1,5 @@
 use crate::{bindings::BindingKey, model, model::Binding, AppState};
+use crate::run_logger;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -29,11 +30,34 @@ fn update_feedback_cache_if_changed(state: &AppState, key: &BindingKey, value: f
 
 #[tauri::command]
 pub fn add_binding(state: State<AppState>, mut binding: Binding) -> Result<(), String> {
+    run_logger::info(
+        "bindings_cmd",
+        "add_requested",
+        &format!(
+            "binding_id={} device_id={} channel={} controller={} action={:?} control_kind={:?}",
+            binding.id,
+            binding.device_id,
+            binding.control.channel,
+            binding.control.controller,
+            binding.action,
+            binding.control_kind
+        ),
+    );
     binding.ensure_targets();
     if binding.targets.is_empty() {
+        run_logger::warn(
+            "bindings_cmd",
+            "add_rejected",
+            &format!("binding_id={} reason=no_targets", binding.id),
+        );
         return Err("Binding must have at least one target".to_string());
     }
     if binding.targets.len() > 8 {
+        run_logger::warn(
+            "bindings_cmd",
+            "add_rejected",
+            &format!("binding_id={} reason=too_many_targets", binding.id),
+        );
         return Err("Binding cannot have more than 8 targets".to_string());
     }
 
@@ -53,11 +77,21 @@ pub fn add_binding(state: State<AppState>, mut binding: Binding) -> Result<(), S
     });
     profile.bindings.push(binding);
     state.sync_feedback_values(profile);
+    run_logger::info(
+        "bindings_cmd",
+        "add_succeeded",
+        &format!("profile={} binding_count={}", profile.name, profile.bindings.len()),
+    );
     Ok(())
 }
 
 #[tauri::command]
 pub async fn remove_binding(state: State<'_, AppState>, binding: Binding) -> Result<(), String> {
+    run_logger::info(
+        "bindings_cmd",
+        "remove_requested",
+        &format!("binding_id={} device_id={}", binding.id, binding.device_id),
+    );
     // 1. Remove the binding from the active profile FIRST to stop the background loop
     {
         let mut profile_guard = state
@@ -137,10 +171,20 @@ pub fn update_midi_feedback(
 
             let is_note = matches!(binding.control.msg_type, model::MidiMessageType::Note);
             if binding_user_active(&state, &key, is_note) {
+                run_logger::debug(
+                    "bindings_cmd",
+                    "feedback_skipped_user_active",
+                    &format!("binding_id={} is_note={}", binding.id, is_note),
+                );
                 continue;
             }
 
             if !update_feedback_cache_if_changed(&state, &key, value) {
+                run_logger::debug(
+                    "bindings_cmd",
+                    "feedback_skipped_unchanged",
+                    &format!("binding_id={} value={}", binding.id, value),
+                );
                 continue;
             }
 
@@ -154,6 +198,11 @@ pub fn update_midi_feedback(
                     binding.control.msg_type.clone(),
                 );
             }
+            run_logger::debug(
+                "bindings_cmd",
+                "feedback_sent",
+                &format!("binding_id={} value={}", binding.id, value),
+            );
         }
     }
 
@@ -196,10 +245,20 @@ pub fn set_binding_feedback(
         // Otherwise a slightly delayed poll/notification can overwrite the latched value and
         // make the motor snap or jitter.
         if user_active && silent {
+            run_logger::debug(
+                "bindings_cmd",
+                "set_feedback_silent_ignored_user_active",
+                &format!("binding_id={}", binding.id),
+            );
             return Ok(());
         }
 
         if !update_feedback_cache_if_changed(&state, &key, value) {
+            run_logger::debug(
+                "bindings_cmd",
+                "set_feedback_skipped_unchanged",
+                &format!("binding_id={} value={}", binding.id, value),
+            );
             return Ok(());
         }
 
@@ -217,11 +276,13 @@ pub fn set_binding_feedback(
             }
         }
     } else {
-        eprintln!(
-            "set_binding_feedback: suppressed hardware feedback for binding {} (binding action: {:?}, requested: {:?})",
-            binding.id,
-            binding.action,
-            effective_action
+        run_logger::warn(
+            "bindings_cmd",
+            "set_feedback_action_mismatch",
+            &format!(
+                "binding_id={} binding_action={:?} requested_action={:?}",
+                binding.id, binding.action, effective_action
+            ),
         );
     }
 

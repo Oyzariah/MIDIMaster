@@ -11,6 +11,7 @@ mod model;
 mod monitors;
 mod plugin_api;
 mod profile_store;
+mod run_logger;
 mod runtime_helpers;
 mod store_api;
 mod windows_autostart;
@@ -178,6 +179,14 @@ impl AppState {
     fn apply_midi_event(&self, app: &AppHandle, event: MidiEvent) -> Result<(), String> {
         let mut learn_pending = self.learn_pending.lock().map_err(|_| "Lock poisoned")?;
         if *learn_pending {
+            run_logger::debug(
+                "learn",
+                "event_received",
+                &format!(
+                    "device_id={} channel={} controller={} value={} msg_type={:?}",
+                    event.device_id, event.channel, event.controller, event.value, event.msg_type
+                ),
+            );
             let msg_type = event.msg_type.clone();
             let base_learned = LearnedControl {
                 device_id: event.device_id.clone(),
@@ -206,6 +215,14 @@ impl AppState {
                 // Pitch bend is continuous by definition.
                 let mut learned = base_learned.clone();
                 learned.control_kind = model::BindingControlKind::Continuous;
+                run_logger::info(
+                    "learn",
+                    "pitch_bend_classified",
+                    &format!(
+                        "device_id={} channel={} controller={} control_kind={:?}",
+                        learned.device_id, learned.channel, learned.controller, learned.control_kind
+                    ),
+                );
                 *learn_pending = false;
                 drop(learn_pending);
                 if let Ok(mut candidate) = self.learn_candidate.lock() {
@@ -254,24 +271,41 @@ impl AppState {
             None => return Ok(()),
         };
         let key = BindingKey::from_event(&event);
-        // println!("Looking for binding: Key={:?} DeviceID={}", key, event.device_id);
         let binding = match find_binding(&profile, &key) {
-            Some(binding) => {
-                // println!("Found binding: {} -> {:?}", binding.name, binding.target);
-                binding.clone()
-            }
+            Some(binding) => binding.clone(),
             None => {
-                // println!("No binding found. Available keys in profile:");
-                // for b in &profile.bindings {
-                //      println!("  - {:?}", BindingKey::from_binding(b));
-                // }
+                run_logger::debug(
+                    "bindings",
+                    "event_unmatched",
+                    &format!(
+                        "device_id={} channel={} controller={} value={} msg_type={:?}",
+                        event.device_id, event.channel, event.controller, event.value, event.msg_type
+                    ),
+                );
                 return Ok(());
             }
         };
         let targets = binding.normalized_targets();
         if targets.is_empty() {
+            run_logger::warn(
+                "bindings",
+                "binding_has_no_targets",
+                &format!("binding_id={} action={:?}", binding.id, binding.action),
+            );
             return Ok(());
         }
+        run_logger::debug(
+            "bindings",
+            "event_matched",
+            &format!(
+                "binding_id={} action={:?} targets={} control_kind={:?} msg_type={:?}",
+                binding.id,
+                binding.action,
+                targets.len(),
+                binding.control_kind,
+                binding.control.msg_type
+            ),
+        );
 
         let volume = {
             let mut states = self.binding_state.lock().map_err(|_| "Lock poisoned")?;
@@ -296,6 +330,11 @@ impl AppState {
                 | model::BindingAction::MediaStop
         ) {
             if event.value == 0 {
+                run_logger::debug(
+                    "bindings",
+                    "media_action_ignored_release",
+                    &format!("binding_id={} action={:?}", binding.id, binding.action),
+                );
                 return Ok(());
             }
             let vk: u16 = match binding.action {
@@ -306,6 +345,11 @@ impl AppState {
                 _ => unreachable!(),
             };
             send_media_key(vk);
+            run_logger::info(
+                "bindings",
+                "media_action_sent",
+                &format!("binding_id={} action={:?} keycode={}", binding.id, binding.action, vk),
+            );
             return Ok(());
         }
 
@@ -321,6 +365,11 @@ impl AppState {
             // On button release (value == 0), re-send current state to enforce latching check
             // This fixes controllers that turn off LED on release (momentary behavior)
             if event.value == 0 {
+                run_logger::debug(
+                    "bindings",
+                    "toggle_mute_release_resend",
+                    &format!("binding_id={} device_id={}", binding.id, binding.device_id),
+                );
                 let key_clone = key.clone();
                 // Clone Arcs for async task
                 let feedback_arc = self.feedback_values.clone();
@@ -364,9 +413,10 @@ impl AppState {
                 match target {
                     model::BindingTarget::Master => {
                         if let Err(err) = self.audio.set_master_mute(muted) {
-                            eprintln!(
-                                "Failed to set master mute for binding {}: {}",
-                                binding.id, err
+                            run_logger::error(
+                                "bindings",
+                                "toggle_mute_master_failed",
+                                &format!("binding_id={} error={}", binding.id, err),
                             );
                         } else {
                             any_applied = true;
@@ -375,9 +425,10 @@ impl AppState {
                     model::BindingTarget::Focus => {
                         if let Some(_focused) = self.audio.focused_session().ok().flatten() {
                             if let Err(err) = self.audio.set_focused_session_mute(muted) {
-                                eprintln!(
-                                    "Failed to set focused mute for binding {}: {}",
-                                    binding.id, err
+                                run_logger::error(
+                                    "bindings",
+                                    "toggle_mute_focus_failed",
+                                    &format!("binding_id={} error={}", binding.id, err),
                                 );
                             } else {
                                 any_applied = true;
@@ -386,9 +437,13 @@ impl AppState {
                     }
                     model::BindingTarget::Session { session_id } => {
                         if let Err(err) = self.audio.set_session_mute(session_id, muted) {
-                            eprintln!(
-                                "Failed to set session mute for binding {} ({}): {}",
-                                binding.id, session_id, err
+                            run_logger::error(
+                                "bindings",
+                                "toggle_mute_session_failed",
+                                &format!(
+                                    "binding_id={} session_id={} error={}",
+                                    binding.id, session_id, err
+                                ),
                             );
                         } else {
                             any_applied = true;
@@ -396,9 +451,10 @@ impl AppState {
                     }
                     model::BindingTarget::Application { name } => {
                         if let Err(err) = self.audio.set_application_mute(name, muted) {
-                            eprintln!(
-                                "Failed to set application mute for binding {} ({}): {}",
-                                binding.id, name, err
+                            run_logger::error(
+                                "bindings",
+                                "toggle_mute_application_failed",
+                                &format!("binding_id={} app={} error={}", binding.id, name, err),
                             );
                         } else {
                             any_applied = true;
@@ -406,9 +462,13 @@ impl AppState {
                     }
                     model::BindingTarget::Device { device_id } => {
                         if let Err(err) = self.audio.set_device_mute(device_id, muted) {
-                            eprintln!(
-                                "Failed to set device mute for binding {} ({}): {}",
-                                binding.id, device_id, err
+                            run_logger::error(
+                                "bindings",
+                                "toggle_mute_device_failed",
+                                &format!(
+                                    "binding_id={} device_id={} error={}",
+                                    binding.id, device_id, err
+                                ),
                             );
                         } else {
                             any_applied = true;
@@ -440,6 +500,11 @@ impl AppState {
             }
 
             if !any_applied {
+                run_logger::warn(
+                    "bindings",
+                    "toggle_mute_no_target_applied",
+                    &format!("binding_id={} targets={}", binding.id, targets.len()),
+                );
                 return Ok(());
             }
 
@@ -525,9 +590,10 @@ impl AppState {
             match target {
                 model::BindingTarget::Master => {
                     if let Err(err) = self.audio.set_master_volume(volume) {
-                        eprintln!(
-                            "Failed to set master volume for binding {}: {}",
-                            binding.id, err
+                        run_logger::error(
+                            "bindings",
+                            "set_master_volume_failed",
+                            &format!("binding_id={} error={}", binding.id, err),
                         );
                     } else {
                         any_applied = true;
@@ -535,9 +601,10 @@ impl AppState {
                 }
                 model::BindingTarget::Focus => {
                     if let Err(err) = self.audio.set_focused_session_volume(volume) {
-                        eprintln!(
-                            "Failed to set focused volume for binding {}: {}",
-                            binding.id, err
+                        run_logger::error(
+                            "bindings",
+                            "set_focus_volume_failed",
+                            &format!("binding_id={} error={}", binding.id, err),
                         );
                     } else {
                         any_applied = true;
@@ -545,9 +612,13 @@ impl AppState {
                 }
                 model::BindingTarget::Session { session_id } => {
                     if let Err(err) = self.audio.set_session_volume(session_id, volume) {
-                        eprintln!(
-                            "Failed to set session volume for binding {} ({}): {}",
-                            binding.id, session_id, err
+                        run_logger::error(
+                            "bindings",
+                            "set_session_volume_failed",
+                            &format!(
+                                "binding_id={} session_id={} error={}",
+                                binding.id, session_id, err
+                            ),
                         );
                     } else {
                         any_applied = true;
@@ -555,9 +626,10 @@ impl AppState {
                 }
                 model::BindingTarget::Application { name } => {
                     if let Err(err) = self.audio.set_application_volume(name, volume) {
-                        eprintln!(
-                            "Failed to set application volume for binding {} ({}): {}",
-                            binding.id, name, err
+                        run_logger::error(
+                            "bindings",
+                            "set_application_volume_failed",
+                            &format!("binding_id={} app={} error={}", binding.id, name, err),
                         );
                     } else {
                         any_applied = true;
@@ -565,9 +637,13 @@ impl AppState {
                 }
                 model::BindingTarget::Device { device_id } => {
                     if let Err(err) = self.audio.set_device_volume(device_id, volume) {
-                        eprintln!(
-                            "Failed to set device volume for binding {} ({}): {}",
-                            binding.id, device_id, err
+                        run_logger::error(
+                            "bindings",
+                            "set_device_volume_failed",
+                            &format!(
+                                "binding_id={} device_id={} error={}",
+                                binding.id, device_id, err
+                            ),
                         );
                     } else {
                         any_applied = true;
@@ -599,6 +675,11 @@ impl AppState {
         }
 
         if !any_applied {
+            run_logger::warn(
+                "bindings",
+                "volume_no_target_applied",
+                &format!("binding_id={} targets={}", binding.id, targets.len()),
+            );
             return Ok(());
         }
 
@@ -869,8 +950,14 @@ impl AppState {
 }
 
 fn shutdown_lights(state: &AppState) {
+    run_logger::info("app", "shutdown_lights_start", "");
     if let Ok(profile_guard) = state.active_profile.lock() {
         if let Some(profile) = profile_guard.as_ref() {
+            run_logger::info(
+                "app",
+                "shutdown_lights_profile",
+                &format!("binding_count={}", profile.bindings.len()),
+            );
             if let Ok(mut midi) = state.midi.lock() {
                 for binding in &profile.bindings {
                     let _ = midi.send_feedback(
@@ -884,6 +971,7 @@ fn shutdown_lights(state: &AppState) {
             }
         }
     }
+    run_logger::info("app", "shutdown_lights_done", "");
 }
 
 #[cfg(test)]
@@ -959,6 +1047,14 @@ fn main() {
         .setup(|app| {
             let config_dir = app_data_root_dir(&app.handle())
                 .map_err(|_| "Unable to resolve config directory".to_string())?;
+            if let Err(err) = run_logger::init(&config_dir) {
+                eprintln!("[midimaster-log-init-failed] {}", err);
+            }
+            run_logger::info(
+                "app",
+                "startup",
+                &format!("config_dir={}", config_dir.display()),
+            );
 
             // Ensure bundled plugins exist in the runtime plugins directory.
             ensure_builtin_plugin(
@@ -994,6 +1090,17 @@ fn main() {
             let profile_store = ProfileStore::new(config_dir.clone());
             let app_settings_store = AppSettingsStore::new(config_dir);
             let app_settings = app_settings_store.load().unwrap_or_default();
+            run_logger::info(
+                "app",
+                "settings_loaded",
+                &format!(
+                    "start_with_windows={} start_in_tray={} minimize_to_tray={} exit_to_tray={}",
+                    app_settings.start_with_windows,
+                    app_settings.start_in_tray,
+                    app_settings.minimize_to_tray,
+                    app_settings.exit_to_tray
+                ),
+            );
             let audio: Box<dyn AudioBackend> = {
                 #[cfg(target_os = "windows")]
                 {
@@ -1074,6 +1181,7 @@ fn main() {
                         }
                         "quit" => {
                             let state = app.state::<AppState>();
+                            run_logger::info("app", "tray_quit", "shutdown requested from tray");
                             shutdown_lights(&state);
                             app.exit(0);
                         }
@@ -1097,17 +1205,20 @@ fn main() {
                         if exit_to_tray {
                             api.prevent_close();
                             let _ = main_window_handle.hide();
+                            run_logger::info("app", "close_to_tray", "main window hidden to tray");
                             return;
                         }
                         if let Some(osd_window) = app_handle.get_webview_window("osd") {
                             let _ = osd_window.close();
                         }
                         let state = app_handle.state::<AppState>();
+                        run_logger::info("app", "window_close", "main window close requested");
                         shutdown_lights(&state);
                         app_handle.exit(0);
                     }
                     tauri::WindowEvent::Destroyed => {
                         let state = app_handle.state::<AppState>();
+                        run_logger::info("app", "window_destroyed", "main window destroyed");
                         shutdown_lights(&state);
                         app_handle.exit(0);
                     }
@@ -1149,6 +1260,18 @@ fn main() {
                     if let Some(candidate) = commit_candidate {
                         if let Ok(mut pending) = state.learn_pending.lock() {
                             if *pending {
+                                run_logger::info(
+                                    "learn",
+                                    "candidate_committed",
+                                    &format!(
+                                        "device_id={} channel={} controller={} msg_type={:?} control_kind={:?}",
+                                        candidate.device_id,
+                                        candidate.channel,
+                                        candidate.controller,
+                                        candidate.msg_type,
+                                        candidate.control_kind
+                                    ),
+                                );
                                 *pending = false;
                                 if let Ok(mut learned) = state.learned_control.lock() {
                                     *learned = Some(candidate.clone());
@@ -1236,6 +1359,7 @@ fn main() {
             clear_midi_device_preferences,
             set_active_profile_preference,
             reset_app_data,
+            open_logs_folder,
             list_playback_devices,
             list_recording_devices,
             set_master_volume,

@@ -371,6 +371,16 @@ export function createSettingsFeature({
       });
     }
 
+    if (d.openLogsFolderButton) {
+      d.openLogsFolderButton.addEventListener("click", async () => {
+        try {
+          await invoke("open_logs_folder");
+        } catch (error) {
+          console.error(`Unable to open logs folder: ${error}`);
+        }
+      });
+    }
+
     if (d.osdEnabledToggle) {
       d.osdEnabledToggle.addEventListener("change", () => {
         applyOsdSettings({ enabled: d.osdEnabledToggle.value === "enabled" });

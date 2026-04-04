@@ -319,6 +319,7 @@ const startWithWindowsSelect = document.getElementById("start-with-windows");
 const startInTraySelect = document.getElementById("start-in-tray");
 const minimizeToTraySelect = document.getElementById("minimize-to-tray");
 const exitToTraySelect = document.getElementById("exit-to-tray");
+const openLogsFolderButton = document.getElementById("open-logs-folder");
 const resetAppDataButton = document.getElementById("reset-app-data");
 const osd = document.getElementById("volume-osd");
 // OSD elements are now dynamic
@@ -752,6 +753,7 @@ settingsFeature = createSettingsFeature({
     startInTraySelect,
     minimizeToTraySelect,
     exitToTraySelect,
+    openLogsFolderButton,
   },
   getOsdSettings: () => osdSettings,
   setOsdSettings: (next) => { osdSettings = next; },

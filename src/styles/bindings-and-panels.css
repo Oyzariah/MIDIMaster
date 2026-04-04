@@ -579,7 +579,7 @@ body.dark-mode .target-tag--count {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .settings-column {
@@ -587,6 +587,7 @@ body.dark-mode .target-tag--count {
   flex-direction: column;
   gap: 16px;
   align-items: flex-start;
+  height: 100%;
 }
 
 .settings-section {
@@ -595,9 +596,23 @@ body.dark-mode .target-tag--count {
 }
 
 .settings-section select,
+.settings-action,
 .settings-reset {
   width: 100%;
   max-width: 340px;
+}
+
+.settings-action {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ccd1e0;
+  background: #f6f8ff;
+  color: #2b2d42;
+  font-weight: 600;
+}
+
+.settings-action:hover {
+  background: #e8edf9;
 }
 
 .settings-reset {
@@ -615,7 +630,20 @@ body.dark-mode .target-tag--count {
 
 .settings-reset-section {
   gap: 8px;
-  margin-top: 16px;
+  margin-top: auto;
+}
+
+.settings-inline-status {
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.settings-inline-status.error {
+  color: #a11f1f;
+}
+
+.settings-inline-status.success {
+  color: #1f5f3a;
 }
 
 .settings-reset.confirming {
@@ -681,7 +709,7 @@ body.dark-mode .target-tag--count {
   position: relative;
   width: 100%;
   max-width: 340px;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 3 / 2;
   border-radius: 18px;
   border: 2px solid #2b2d42;
   background: #eef1fb;

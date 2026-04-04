@@ -1,4 +1,5 @@
 use crate::{model::DeviceInfo, AppState};
+use crate::run_logger;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[tauri::command]
@@ -28,9 +29,17 @@ pub fn start_midi_device(
     input_device_id: String,
     output_device_id: String,
 ) -> Result<(), String> {
+    run_logger::info(
+        "midi_cmd",
+        "start_requested",
+        &format!(
+            "input_device_id={} output_device_id={}",
+            input_device_id, output_device_id
+        ),
+    );
     let app_handle = app.clone();
     {
-        state
+        if let Err(err) = state
             .midi
             .lock()
             .map_err(|_| "Lock poisoned".to_string())?
@@ -39,7 +48,18 @@ pub fn start_midi_device(
                 let state = app_handle.state::<AppState>();
                 let _ = state.apply_midi_event(&app_handle, event);
             })
-            .map_err(|err| err.to_string())?;
+            .map_err(|err| err.to_string())
+        {
+            run_logger::error(
+                "midi_cmd",
+                "start_failed",
+                &format!(
+                    "input_device_id={} output_device_id={} error={}",
+                    input_device_id, output_device_id, err
+                ),
+            );
+            return Err(err);
+        }
     }
 
     // Keep persisted bindings aligned with the currently connected input device.
@@ -84,12 +104,21 @@ pub fn start_midi_device(
             serde_json::json!({ "device_id": input_device_id, "count": migrated_count }),
         );
     }
+    run_logger::info(
+        "midi_cmd",
+        "start_succeeded",
+        &format!(
+            "input_device_id={} output_device_id={} bindings_migrated={}",
+            input_device_id, output_device_id, migrated_count
+        ),
+    );
 
     Ok(())
 }
 
 #[tauri::command]
 pub fn stop_midi_device(state: State<AppState>) -> Result<(), String> {
+    run_logger::info("midi_cmd", "stop_requested", "");
     state
         .midi
         .lock()
@@ -100,6 +129,7 @@ pub fn stop_midi_device(state: State<AppState>) -> Result<(), String> {
 
 #[tauri::command]
 pub fn start_midi_learn(state: State<AppState>) -> Result<(), String> {
+    run_logger::info("learn", "start_requested", "");
     *state
         .learn_pending
         .lock()
@@ -123,5 +153,20 @@ pub fn consume_learned_control(
         .learned_control
         .lock()
         .map_err(|_| "Lock poisoned".to_string())?;
-    Ok(guard.take())
+    let next = guard.take();
+    if let Some(control) = next.as_ref() {
+        run_logger::info(
+            "learn",
+            "control_consumed",
+            &format!(
+                "device_id={} channel={} controller={} msg_type={:?} control_kind={:?}",
+                control.device_id,
+                control.channel,
+                control.controller,
+                control.msg_type,
+                control.control_kind
+            ),
+        );
+    }
+    Ok(next)
 }

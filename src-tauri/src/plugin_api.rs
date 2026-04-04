@@ -11,6 +11,7 @@ use std::{
 use tauri::AppHandle;
 
 use crate::app_paths::app_data_root_dir;
+use crate::run_logger;
 
 const BUNDLED_PLUGIN_IDS: &[&str] = &["hue", "obs", "wavelink"];
 
@@ -378,19 +379,23 @@ pub fn hue_discover_bridges(candidate_ips: Option<Vec<String>>) -> Result<Vec<St
             Ok(mut ips) => {
                 cloud_success = true;
                 if ips.is_empty() {
-                    eprintln!("[hue] cloud discovery empty: {}", url);
+                    run_logger::warn("hue", "cloud_discovery_empty", &format!("url={}", url));
                 } else {
-                    eprintln!(
-                        "[hue] cloud discovery success: {} -> {} bridge(s)",
-                        url,
-                        ips.len()
+                    run_logger::info(
+                        "hue",
+                        "cloud_discovery_success",
+                        &format!("url={} bridge_count={}", url, ips.len()),
                     );
                 }
                 out.append(&mut ips);
             }
             Err(e) => {
                 cloud_had_error = true;
-                eprintln!("[hue] cloud discovery failed: {} ({})", url, e);
+                run_logger::warn(
+                    "hue",
+                    "cloud_discovery_failed",
+                    &format!("url={} error={}", url, e),
+                );
                 last_err = Some(e);
             }
         }
@@ -415,16 +420,20 @@ pub fn hue_discover_bridges(candidate_ips: Option<Vec<String>>) -> Result<Vec<St
         }
         match probe_local_bridge(trimmed) {
             Ok(true) => {
-                eprintln!("[hue] local probe success: {}", trimmed);
+                run_logger::info("hue", "local_probe_success", &format!("ip={}", trimmed));
                 out.push(trimmed.to_string());
             }
             Ok(false) => {
-                eprintln!("[hue] local probe empty/non-hue: {}", trimmed);
+                run_logger::debug("hue", "local_probe_non_hue", &format!("ip={}", trimmed));
             }
             Err(e) => {
                 // Local probes are a best-effort fallback and should not make
                 // discovery fail hard when cloud endpoints are unavailable.
-                eprintln!("[hue] local probe failed for {}: {}", trimmed, e);
+                run_logger::warn(
+                    "hue",
+                    "local_probe_failed",
+                    &format!("ip={} error={}", trimmed, e),
+                );
             }
         }
     }

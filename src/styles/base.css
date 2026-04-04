@@ -494,6 +494,24 @@ body.dark-mode .settings-reset:hover {
   background: #743236;
 }
 
+body.dark-mode .settings-action {
+  background: #22304a;
+  border-color: #4a5f8a;
+  color: #e8eefc;
+}
+
+body.dark-mode .settings-action:hover {
+  background: #2b3b5a;
+}
+
+body.dark-mode .settings-inline-status.error {
+  color: #ffb3bc;
+}
+
+body.dark-mode .settings-inline-status.success {
+  color: #9ce7be;
+}
+
 /* Legacy support for old class name */
 .settings-button {
   width: 36px;
