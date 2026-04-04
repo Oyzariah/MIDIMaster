@@ -396,6 +396,7 @@ export function createTargetsFeature({
     };
 
     let selectedTargets = normalizeTargets(currentTarget);
+    const targetDisplayCache = new Map();
     let selectedAction = isBindingButton ? (currentAction || "ToggleMute") : "Volume";
 
     const { options, selectedValue, selectedKind, activeIntegrationOption } = buildTargetOptions(selectedTargets[0] || currentTarget, isBindingButton);
@@ -424,8 +425,20 @@ export function createTargetsFeature({
       return action;
     };
 
+    const cachedDisplayForTarget = (target) => {
+      const key = targetIdentity(target);
+      const cached = targetDisplayCache.get(key);
+      const resolved = resolveDisplay(target);
+      const merged = {
+        label: (resolved?.label || cached?.label || "Target"),
+        icon_data: (resolved?.icon_data ?? cached?.icon_data ?? null),
+      };
+      targetDisplayCache.set(key, merged);
+      return merged;
+    };
+
     const renderChip = (target, index) => {
-      const displayOption = resolveDisplay(target) || { label: "Target", icon_data: null };
+      const displayOption = cachedDisplayForTarget(target);
       const chip = document.createElement("span");
       chip.className = "target-chip";
       chip.dataset.index = String(index);
@@ -521,7 +534,7 @@ export function createTargetsFeature({
       if (option.kind === "placeholder") {
         return "Unset";
       }
-      return selectedTarget;
+      return selectedTargets[0] || "Unset";
     };
 
     const syncContainerValue = (markUnavailable = false) => {
@@ -539,6 +552,13 @@ export function createTargetsFeature({
 
       const mapped = mapOptionToTarget(option);
       const key = targetIdentity(mapped);
+      const cachedLabel = String(option?.label || "").trim();
+      if (cachedLabel || option?.icon_data) {
+        targetDisplayCache.set(key, {
+          label: cachedLabel || "Target",
+          icon_data: option?.icon_data ?? null,
+        });
+      }
       const exists = selectedTargets.findIndex((t) => targetIdentity(t) === key);
       if (exists >= 0) {
         selectedTargets.splice(exists, 1);

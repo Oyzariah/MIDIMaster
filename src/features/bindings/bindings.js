@@ -93,6 +93,11 @@ export function createBindingsFeature({
     return Boolean(document.querySelector(".target-dropdown.open"));
   }
 
+  function isTargetPanelOpen() {
+    const panel = document.getElementById("target-panel");
+    return Boolean(panel && !panel.classList.contains("hidden"));
+  }
+
   function isBindingNameEditing() {
     return Boolean(document.querySelector(".binding-name-input:focus"));
   }
@@ -103,7 +108,10 @@ export function createBindingsFeature({
   }
 
   function isBindingInteractionActive() {
-    return isBindingTargetMenuOpen() || isBindingNameEditing() || isBindingSelectEditing();
+    return isBindingTargetMenuOpen()
+      || isTargetPanelOpen()
+      || isBindingNameEditing()
+      || isBindingSelectEditing();
   }
 
   function normalizeControlKind(raw) {

@@ -51,7 +51,13 @@ async function startPluginHostIfNeeded() {
           if (t) return;
           t = setTimeout(() => {
             t = null;
-            try { renderBindings(); } catch { }
+            try {
+              // Avoid replacing binding rows while the user is actively editing/selecting.
+              if (isBindingInteractionActive()) {
+                return;
+              }
+              renderBindings();
+            } catch { }
           }, 75);
         };
       })(),
