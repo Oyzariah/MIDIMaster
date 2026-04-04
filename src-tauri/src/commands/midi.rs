@@ -1,5 +1,5 @@
-use crate::{model::DeviceInfo, AppState};
 use crate::run_logger;
+use crate::{model::DeviceInfo, AppState};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 #[tauri::command]

@@ -220,7 +220,10 @@ impl AppState {
                     "pitch_bend_classified",
                     &format!(
                         "device_id={} channel={} controller={} control_kind={:?}",
-                        learned.device_id, learned.channel, learned.controller, learned.control_kind
+                        learned.device_id,
+                        learned.channel,
+                        learned.controller,
+                        learned.control_kind
                     ),
                 );
                 *learn_pending = false;
@@ -279,7 +282,11 @@ impl AppState {
                     "event_unmatched",
                     &format!(
                         "device_id={} channel={} controller={} value={} msg_type={:?}",
-                        event.device_id, event.channel, event.controller, event.value, event.msg_type
+                        event.device_id,
+                        event.channel,
+                        event.controller,
+                        event.value,
+                        event.msg_type
                     ),
                 );
                 return Ok(());
@@ -348,7 +355,10 @@ impl AppState {
             run_logger::info(
                 "bindings",
                 "media_action_sent",
-                &format!("binding_id={} action={:?} keycode={}", binding.id, binding.action, vk),
+                &format!(
+                    "binding_id={} action={:?} keycode={}",
+                    binding.id, binding.action, vk
+                ),
             );
             return Ok(());
         }

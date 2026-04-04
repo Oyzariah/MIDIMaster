@@ -47,7 +47,11 @@ impl MidiManager {
             });
         }
         if devices.is_empty() {
-            run_logger::warn("midi", "input_enumeration_empty", "retrying input enumeration");
+            run_logger::warn(
+                "midi",
+                "input_enumeration_empty",
+                "retrying input enumeration",
+            );
             let midi_in_retry = MidiInput::new("MIDIMaster")?;
             let ports = midi_in_retry.ports();
             for (index, port) in ports.iter().enumerate() {
@@ -305,19 +309,13 @@ impl MidiManager {
                             run_logger::error(
                                 "midi",
                                 "output_reconnect_give_up",
-                                &format!(
-                                    "attempts={} error={}",
-                                    self.reconnect_failures, e
-                                ),
+                                &format!("attempts={} error={}", self.reconnect_failures, e),
                             );
                         } else {
                             run_logger::warn(
                                 "midi",
                                 "output_reconnect_failed",
-                                &format!(
-                                    "attempt={} error={}",
-                                    self.reconnect_failures, e
-                                ),
+                                &format!("attempt={} error={}", self.reconnect_failures, e),
                             );
                         }
                     }

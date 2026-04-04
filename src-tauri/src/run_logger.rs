@@ -51,7 +51,11 @@ pub fn init(app_data_dir: &Path) -> Result<(), String> {
     info(
         "logger",
         "initialized",
-        &format!("logs_dir={} max_files={}", logs_dir.display(), MAX_LOG_FILES),
+        &format!(
+            "logs_dir={} max_files={}",
+            logs_dir.display(),
+            MAX_LOG_FILES
+        ),
     );
 
     Ok(())
@@ -90,7 +94,10 @@ fn log(level: &str, component: &str, event: &str, details: &str) {
     if let Some(logger) = LOGGER.get() {
         if let Ok(mut file) = logger.file.lock() {
             if let Err(e) = file.write_all(line.as_bytes()) {
-                eprintln!("[midimaster-log-write-failed] {e}; line={}", line.trim_end());
+                eprintln!(
+                    "[midimaster-log-write-failed] {e}; line={}",
+                    line.trim_end()
+                );
             }
             return;
         }

@@ -1,4 +1,7 @@
-use crate::{app_paths::app_data_root_dir, app_settings::AppSettings, collect_monitor_descriptors, model::OsdSettings, run_logger, AppState};
+use crate::{
+    app_paths::app_data_root_dir, app_settings::AppSettings, collect_monitor_descriptors,
+    model::OsdSettings, run_logger, AppState,
+};
 use serde::Serialize;
 use std::process::Command;
 use tauri::{AppHandle, State};

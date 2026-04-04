@@ -1,5 +1,5 @@
-use crate::{bindings::BindingKey, model, model::Binding, AppState};
 use crate::run_logger;
+use crate::{bindings::BindingKey, model, model::Binding, AppState};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -80,7 +80,11 @@ pub fn add_binding(state: State<AppState>, mut binding: Binding) -> Result<(), S
     run_logger::info(
         "bindings_cmd",
         "add_succeeded",
-        &format!("profile={} binding_count={}", profile.name, profile.bindings.len()),
+        &format!(
+            "profile={} binding_count={}",
+            profile.name,
+            profile.bindings.len()
+        ),
     );
     Ok(())
 }
