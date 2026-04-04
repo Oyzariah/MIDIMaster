@@ -8,8 +8,10 @@ mod commands;
 mod device_target;
 mod midi;
 mod model;
+mod monitors;
 mod plugin_api;
 mod profile_store;
+mod runtime_helpers;
 mod store_api;
 mod windows_autostart;
 mod windows_display;
@@ -23,45 +25,9 @@ use commands::*;
 use device_target::{parse_device_target, DeviceTargetKind};
 use midi::MidiManager;
 use model::{LearnedControl, MidiEvent, OsdSettings, Profile};
+use monitors::resolve_monitor_for_osd;
+use runtime_helpers::{classify_learned_control, send_media_key, LearnCandidate};
 use windows_autostart::set_windows_autostart;
-use windows_display::{display_device_id, monitor_display_name};
-
-fn send_media_key(vk: u16) {
-    use windows::Win32::UI::Input::KeyboardAndMouse::{
-        SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, KEYEVENTF_KEYUP,
-        VIRTUAL_KEY,
-    };
-
-    let key_down = INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 {
-            ki: KEYBDINPUT {
-                wVk: VIRTUAL_KEY(vk),
-                wScan: 0,
-                dwFlags: KEYBD_EVENT_FLAGS(0),
-                time: 0,
-                dwExtraInfo: 0,
-            },
-        },
-    };
-
-    let key_up = INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 {
-            ki: KEYBDINPUT {
-                wVk: VIRTUAL_KEY(vk),
-                wScan: 0,
-                dwFlags: KEYEVENTF_KEYUP,
-                time: 0,
-                dwExtraInfo: 0,
-            },
-        },
-    };
-
-    unsafe {
-        SendInput(&[key_down, key_up], std::mem::size_of::<INPUT>() as i32);
-    }
-}
 
 use profile_store::ProfileStore;
 use std::collections::HashMap;
@@ -76,13 +42,12 @@ use tauri::{
 };
 use tokio::time::sleep;
 
+pub(crate) use monitors::collect_monitor_descriptors;
 use plugin_api::{
     ensure_builtin_plugin, get_plugins_dir, hue_api_get, hue_api_put, hue_discover_bridges,
     hue_pair_bridge, install_plugin_package, list_plugins, read_plugin_base64, read_plugin_text,
     set_plugin_enabled, uninstall_plugin,
 };
-use std::thread::sleep as thread_sleep;
-use std::time::Duration as StdDuration;
 use store_api::{fetch_store_catalog, install_store_plugin};
 use ws_bridge::{get_wavelink_ws_port, ws_close, ws_open, ws_send, WsHub};
 
@@ -91,34 +56,6 @@ use audio::windows::WindowsAudioBackend;
 
 #[cfg(not(target_os = "windows"))]
 use audio::unsupported::UnsupportedAudioBackend;
-
-#[derive(Debug, Clone)]
-struct LearnCandidate {
-    control: LearnedControl,
-    last_seen_at: Instant,
-    saw_zero: bool,
-    saw_max: bool,
-}
-
-fn classify_cc_candidate(saw_zero: bool, saw_max: bool) -> model::BindingControlKind {
-    if saw_zero && saw_max {
-        model::BindingControlKind::Button
-    } else {
-        model::BindingControlKind::Continuous
-    }
-}
-
-fn classify_learned_control(candidate: &LearnCandidate) -> LearnedControl {
-    let mut learned = candidate.control.clone();
-    learned.control_kind = match learned.msg_type {
-        model::MidiMessageType::Note => model::BindingControlKind::Button,
-        model::MidiMessageType::ControlChange => {
-            classify_cc_candidate(candidate.saw_zero, candidate.saw_max)
-        }
-        model::MidiMessageType::PitchBend => model::BindingControlKind::Continuous,
-    };
-    learned
-}
 
 struct AppState {
     audio: Box<dyn AudioBackend>,
@@ -136,101 +73,6 @@ struct AppState {
     osd_last_update: Mutex<Option<Instant>>,
     osd_settings: Mutex<OsdSettings>,
     app_settings: Mutex<AppSettings>,
-}
-
-#[derive(Clone)]
-pub(crate) struct MonitorDescriptor {
-    pub index: usize,
-    pub friendly_name: String,
-    pub stable_id: String,
-    pub is_primary: bool,
-    pub monitor: tauri::Monitor,
-}
-
-pub(crate) fn collect_monitor_descriptors(
-    app: &AppHandle,
-) -> Result<Vec<MonitorDescriptor>, String> {
-    let monitors = app
-        .available_monitors()
-        .map_err(|_| "Failed to load monitors".to_string())?;
-    let primary = app.primary_monitor().ok().flatten();
-
-    Ok(monitors
-        .iter()
-        .enumerate()
-        .map(|(index, monitor)| {
-            let raw_name = monitor
-                .name()
-                .cloned()
-                .unwrap_or_else(|| format!("Monitor {}", index + 1));
-            let stable_id = display_device_id(&raw_name).unwrap_or_else(|| raw_name.clone());
-            let friendly_name = monitor_display_name(&raw_name).unwrap_or_else(|| raw_name.clone());
-            let is_primary = primary
-                .as_ref()
-                .map(|p| {
-                    p.name() == monitor.name()
-                        && p.size() == monitor.size()
-                        && p.position() == monitor.position()
-                })
-                .unwrap_or(false);
-
-            MonitorDescriptor {
-                index,
-                friendly_name,
-                stable_id,
-                is_primary,
-                monitor: monitor.clone(),
-            }
-        })
-        .collect())
-}
-
-#[derive(Clone)]
-struct SelectedMonitor {
-    monitor: tauri::Monitor,
-}
-
-fn resolve_monitor_for_osd(app: &AppHandle, settings: &OsdSettings) -> Option<SelectedMonitor> {
-    let requested_id = settings.monitor_id.as_ref().and_then(|id| {
-        let trimmed = id.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed.to_string())
-        }
-    });
-
-    // Retry only when an explicit monitor ID was requested but not yet enumerated.
-    let max_attempts = if requested_id.is_some() { 7 } else { 1 };
-
-    for attempt in 0..max_attempts {
-        let descriptors = collect_monitor_descriptors(app).ok()?;
-
-        if let Some(ref id) = requested_id {
-            if let Some(found) = descriptors.iter().find(|m| m.stable_id == *id) {
-                return Some(SelectedMonitor {
-                    monitor: found.monitor.clone(),
-                });
-            }
-
-            if attempt + 1 < max_attempts {
-                thread_sleep(StdDuration::from_millis(250));
-                continue;
-            }
-        }
-
-        if let Some(primary) = descriptors
-            .iter()
-            .find(|m| m.is_primary)
-            .or_else(|| descriptors.first())
-        {
-            return Some(SelectedMonitor {
-                monitor: primary.monitor.clone(),
-            });
-        }
-    }
-
-    None
 }
 
 impl AppState {
@@ -271,7 +113,7 @@ impl AppState {
 
         let selected = resolve_monitor_for_osd(app, settings);
         if let Some(selected) = selected {
-            let monitor = selected.monitor;
+            let monitor = selected;
             let scale_factor = monitor.scale_factor();
             let size = monitor.size();
             let position = monitor.position();

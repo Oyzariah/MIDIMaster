@@ -93,6 +93,7 @@ Documentation
 
 - User guide: `docs/USER_GUIDE.md`
 - Plugin developer guide (API v1): `docs/PLUGIN_DEVELOPER_GUIDE.md`
+- Architecture guardrails: `docs/ARCHITECTURE_GUARDRAILS.md`
 
 Plugin examples
 
