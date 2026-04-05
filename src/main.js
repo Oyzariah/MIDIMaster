@@ -49,18 +49,22 @@ async function startPluginHostIfNeeded() {
         return () => {
           // Debounce rapid status updates.
           if (t) return;
-          t = setTimeout(() => {
-            t = null;
-            try {
-              // Avoid replacing binding rows while the user is actively editing/selecting.
-              if (isBindingInteractionActive()) {
-                return;
-              }
-              renderBindings();
-            } catch { }
-          }, 75);
-        };
-      })(),
+      t = setTimeout(() => {
+        t = null;
+        try {
+          if (bindingsFeature?.isInlineNameEditingActive?.()) {
+            requestBindingsRerender("plugin_invalidate");
+            return;
+          }
+          // Avoid replacing binding rows while the user is actively editing/selecting.
+          if (isBindingInteractionActive()) {
+            return;
+          }
+          requestBindingsRerender("plugin_invalidate");
+        } catch { }
+      }, 75);
+    };
+  })(),
     });
   }
 
@@ -275,6 +279,15 @@ const targetPanelList = document.getElementById("target-panel-list");
 const targetPanelTitle = document.getElementById("target-panel-title");
 const targetPanelClose = document.getElementById("target-panel-close");
 const targetPanelBack = document.getElementById("target-panel-back");
+const bindingConfigPanel = document.getElementById("binding-config-panel");
+const bindingConfigClose = document.getElementById("binding-config-close");
+const bindingConfigName = document.getElementById("binding-config-name");
+const bindingConfigMuteLabel = document.getElementById("binding-config-mute-label");
+const bindingConfigMuteLearn = document.getElementById("binding-config-mute-learn");
+const bindingConfigMuteClear = document.getElementById("binding-config-mute-clear");
+const bindingConfigAssignLabel = document.getElementById("binding-config-assign-label");
+const bindingConfigAssignLearn = document.getElementById("binding-config-assign-learn");
+const bindingConfigAssignClear = document.getElementById("binding-config-assign-clear");
 
 // Defensive cleanup for older builds that injected extra back buttons.
 try {
@@ -307,7 +320,12 @@ try {
   // ignore
 }
 const learnPanel = document.getElementById("learn-panel");
+const learnPanelTitle = document.getElementById("learn-panel-title");
 const learnPanelMessage = document.getElementById("learn-panel-message");
+const learnPanelSpinner = document.getElementById("learn-panel-spinner");
+const learnPanelActions = document.getElementById("learn-panel-actions");
+const learnPanelCancel = document.getElementById("learn-panel-cancel");
+const learnPanelConfirm = document.getElementById("learn-panel-confirm");
 const learnPanelClose = document.getElementById("learn-panel-close");
 const settingsButton = document.getElementById("settings-button");
 const themeToggleButton = document.getElementById("theme-toggle-button");
@@ -333,6 +351,7 @@ const alertOverlay = document.getElementById("alert-overlay");
 const alertTitle = document.getElementById("alert-title");
 const alertMessage = document.getElementById("alert-message");
 const alertClose = document.getElementById("alert-close");
+const alertCancel = document.getElementById("alert-cancel");
 const alertOk = document.getElementById("alert-ok");
 
 function bindTauriApi() {
@@ -550,6 +569,55 @@ async function hydrateClientPreferences() {
   }
 }
 
+const integrationTargetStateByKey = new Map();
+
+function stableStringifyForIntegrationState(value) {
+  if (value == null) return "null";
+  if (typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringifyForIntegrationState).join(",")}]`;
+  }
+  const keys = Object.keys(value).sort();
+  const parts = keys.map((k) => `${JSON.stringify(k)}:${stableStringifyForIntegrationState(value[k])}`);
+  return `{${parts.join(",")}}`;
+}
+
+function integrationStateKeyForTarget(target) {
+  if (!target || typeof target !== "object") return "";
+  const integration = target.Integration || target.integration;
+  if (!integration || !integration.integration_id) return "";
+  const id = String(integration.integration_id || "");
+  const kind = String(integration.kind || "");
+  const data = (integration.data && typeof integration.data === "object") ? { ...integration.data } : {};
+  for (const k of Object.keys(data)) {
+    if (k.endsWith("_name") || k.endsWith("Name") || k === "label" || k === "icon_data") {
+      delete data[k];
+    }
+  }
+  return `${id}:${kind}:${stableStringifyForIntegrationState(data)}`;
+}
+
+function getIntegrationStateForTarget(target) {
+  const key = integrationStateKeyForTarget(target);
+  if (!key) return null;
+  return integrationTargetStateByKey.get(key) || null;
+}
+
+function updateIntegrationStateFromEventPayload(payload) {
+  if (!payload || typeof payload !== "object") return;
+  const key = integrationStateKeyForTarget(payload.target);
+  if (!key) return;
+  const prev = integrationTargetStateByKey.get(key) || {};
+  const next = { ...prev };
+  if (typeof payload.volume === "number") {
+    next.volume = payload.volume;
+  }
+  if (typeof payload.muted === "boolean") {
+    next.muted = payload.muted;
+  }
+  integrationTargetStateByKey.set(key, next);
+}
+
 const targetCore = createTargetCore({
   masterIconData,
   focusIconData,
@@ -557,6 +625,7 @@ const targetCore = createTargetCore({
   getPlaybackDevices: () => playbackDevices,
   getRecordingDevices: () => recordingDevices,
   getPluginHost: () => pluginHost,
+  getIntegrationTargetState: getIntegrationStateForTarget,
 });
 
 const {
@@ -845,6 +914,23 @@ bindingsFeature = createBindingsFeature({
   invoke,
   dom: {
     bindingsContainer,
+    bindingConfigPanel,
+    bindingConfigClose,
+    bindingConfigName,
+    bindingConfigMuteLabel,
+    bindingConfigMuteLearn,
+    bindingConfigMuteClear,
+    bindingConfigAssignLabel,
+    bindingConfigAssignLearn,
+    bindingConfigAssignClear,
+    learnPanel,
+    learnPanelTitle,
+    learnPanelMessage,
+    learnPanelSpinner,
+    learnPanelActions,
+    learnPanelCancel,
+    learnPanelConfirm,
+    learnPanelClose,
   },
   getPlaybackDevices: () => playbackDevices,
   getRecordingDevices: () => recordingDevices,
@@ -880,7 +966,12 @@ midiFeature = createMidiFeature({
     midiStatus,
     mainScreen,
     learnPanel,
+    learnPanelTitle,
     learnPanelMessage,
+    learnPanelSpinner,
+    learnPanelActions,
+    learnPanelCancel,
+    learnPanelConfirm,
     learnPanelClose,
     refreshMidiButton: document.getElementById("refresh-midi"),
     learnBindingButton: document.getElementById("learn-binding"),
@@ -889,13 +980,47 @@ midiFeature = createMidiFeature({
   showMain,
   refreshSessions,
   addBindingFromLearn: async (learned) => {
-    const binding = createBindingFromLearn(learned);
-    bindings.push(binding);
-    editingBindingId = binding.id;
-    pendingFocusBindingId = binding.id;
-    renderBindings();
-    await invoke("add_binding", { binding });
-    await saveBindingsForProfile();
+    try {
+      const learnedMapping = normalizeLearnedControlMapping(learned);
+      const conflict = findCreateBindingConflict(learnedMapping);
+
+      if (conflict && conflict.field === "control") {
+        hideCreateLearnPanel();
+        const owner = conflict.binding?.name || "Unnamed binding";
+        showAlert(
+          "Already Assigned",
+          `This control is already assigned to "${owner}" and can't be added again.`,
+        );
+        return;
+      }
+
+      if (conflict && (conflict.field === "mute_control" || conflict.field === "assign_control")) {
+        const owner = conflict.binding?.name || "Unnamed binding";
+        const ownerSlot = conflict.field === "mute_control" ? "Mute" : "Assign";
+        const confirmed = await promptCreateLearnTransfer(
+          `This control is currently mapped as ${ownerSlot} on "${owner}". Transfer it to this new binding?`,
+        );
+        if (!confirmed) {
+          hideCreateLearnPanel();
+          return;
+        }
+
+        conflict.binding[conflict.field] = null;
+        await invoke("add_binding", { binding: conflict.binding });
+      }
+
+      const binding = createBindingFromLearn(learned);
+      bindings.push(binding);
+      await invoke("add_binding", { binding });
+      await saveBindingsForProfile();
+      hideCreateLearnPanel();
+      editingBindingId = binding.id;
+      pendingFocusBindingId = binding.id;
+      renderBindings();
+    } catch (error) {
+      hideCreateLearnPanel();
+      showAlert("Create Binding Failed", String(error));
+    }
   },
   getSavedMidiDeviceIds,
   saveMidiDeviceIds,
@@ -918,6 +1043,14 @@ function beginBindingEdit(bindingId) {
 
 function renderBindings() {
   bindingsFeature?.renderBindings?.();
+}
+
+function requestBindingsRerender(reason = "") {
+  if (bindingsFeature?.requestSafeRerender) {
+    bindingsFeature.requestSafeRerender(reason);
+    return;
+  }
+  renderBindings();
 }
 
 function startBindingDrag(item, index, event) {
@@ -1127,9 +1260,10 @@ const alertsController = createAlertsController({
   alertTitle,
   alertMessage,
   alertClose,
+  alertCancel,
   alertOk,
 });
-const showAlert = (...args) => alertsController.showAlert(...args);
+const showAlert = (title, message = "") => alertsController.showAlert(message, title);
 const closeAlert = (...args) => alertsController.closeAlert(...args);
 
 connectionsController?.bindUi?.();
@@ -1180,6 +1314,104 @@ function buildTargetSelect(currentTarget, isBindingButton = false, currentAction
   return targetsFeature?.buildTargetSelect?.(currentTarget, isBindingButton, currentAction);
 }
 
+const LEARN_PANEL_DEFAULT_TITLE = "Waiting for MIDI Input";
+const LEARN_PANEL_DEFAULT_MESSAGE = "Move a control on your MIDI device to create a binding.";
+
+function resetCreateLearnPanelUi() {
+  if (!learnPanel) return;
+  if (learnPanelTitle) learnPanelTitle.textContent = LEARN_PANEL_DEFAULT_TITLE;
+  if (learnPanelMessage) learnPanelMessage.textContent = LEARN_PANEL_DEFAULT_MESSAGE;
+  if (learnPanelSpinner) learnPanelSpinner.classList.remove("hidden");
+  if (learnPanelActions) learnPanelActions.classList.add("hidden");
+  if (learnPanelConfirm) learnPanelConfirm.textContent = "Transfer";
+}
+
+function hideCreateLearnPanel() {
+  if (!learnPanel) return;
+  learnPanel.classList.add("hidden");
+  resetCreateLearnPanelUi();
+}
+
+function normalizeLearnedControlMapping(learned) {
+  return {
+    device_id: String(learned?.device_id || ""),
+    channel: Number(learned?.channel),
+    controller: Number(learned?.controller),
+    msg_type: String(learned?.msg_type || "ControlChange"),
+  };
+}
+
+function controlsMatch(a, b) {
+  if (!a || !b) return false;
+  return String(a.device_id || "") === String(b.device_id || "")
+    && Number(a.channel) === Number(b.channel)
+    && Number(a.controller) === Number(b.controller)
+    && String(a.msg_type || "ControlChange") === String(b.msg_type || "ControlChange");
+}
+
+function bindingPrimaryMapping(binding) {
+  return {
+    device_id: binding?.device_id,
+    channel: binding?.control?.channel,
+    controller: binding?.control?.controller,
+    msg_type: binding?.control?.msg_type || "ControlChange",
+  };
+}
+
+function findCreateBindingConflict(learnedMapping) {
+  for (const binding of bindings || []) {
+    if (!binding) continue;
+    if (controlsMatch(bindingPrimaryMapping(binding), learnedMapping)) {
+      return { binding, field: "control" };
+    }
+    if (controlsMatch(binding.mute_control, learnedMapping)) {
+      return { binding, field: "mute_control" };
+    }
+    if (controlsMatch(binding.assign_control, learnedMapping)) {
+      return { binding, field: "assign_control" };
+    }
+  }
+  return null;
+}
+
+async function promptCreateLearnTransfer(message) {
+  if (!learnPanel) return false;
+  if (learnPanelTitle) learnPanelTitle.textContent = "Transfer Mapping";
+  if (learnPanelMessage) learnPanelMessage.textContent = message || "";
+  if (learnPanelSpinner) learnPanelSpinner.classList.add("hidden");
+  if (learnPanelActions) learnPanelActions.classList.remove("hidden");
+  if (learnPanelConfirm) learnPanelConfirm.textContent = "Transfer";
+  learnPanel.classList.remove("hidden");
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(result);
+    };
+    const onCancel = () => finish(false);
+    const onConfirm = () => finish(true);
+    const onOverlay = (event) => {
+      if (event.target === learnPanel) {
+        finish(false);
+      }
+    };
+    const cleanup = () => {
+      learnPanelCancel?.removeEventListener("click", onCancel);
+      learnPanelClose?.removeEventListener("click", onCancel);
+      learnPanelConfirm?.removeEventListener("click", onConfirm);
+      learnPanel?.removeEventListener("click", onOverlay);
+    };
+
+    learnPanelCancel?.addEventListener("click", onCancel);
+    learnPanelClose?.addEventListener("click", onCancel);
+    learnPanelConfirm?.addEventListener("click", onConfirm);
+    learnPanel?.addEventListener("click", onOverlay);
+  });
+}
+
 function createBindingFromLearn(payload) {
   const msgType = payload.msg_type || "ControlChange";
   const controlKind = payload.control_kind || "Auto";
@@ -1202,6 +1434,8 @@ function createBindingFromLearn(payload) {
     mode: "Absolute",
     deadzone: 0,
     debounce_ms: 0,
+    mute_control: null,
+    assign_control: null,
   };
 }
 
@@ -1272,7 +1506,69 @@ async function setupListeners() {
       ...binding,
       device_id: deviceId,
     }));
-    renderBindings();
+    requestBindingsRerender("bindings_migrated");
+  });
+
+  await listen("binding_aux_error", (event) => {
+    let payload = event.payload;
+    if (typeof payload === "string") {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        payload = null;
+      }
+    }
+    if (!payload) return;
+    if (payload.reason === "target_list_full") {
+      showAlert("Target List Full", "This fader already has 8 targets. Remove one before assigning another app.");
+      return;
+    }
+    if (payload.reason === "focused_app_unavailable") {
+      showAlert("Assign Failed", "Could not resolve the focused application. Click the app window and try again.");
+    }
+  });
+
+  await listen("binding_aux_assign_update", (event) => {
+    let payload = event.payload;
+    if (typeof payload === "string") {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        payload = null;
+      }
+    }
+    if (payload?.binding_id && payload?.target) {
+      const binding = bindings.find((b) => b && b.id === payload.binding_id);
+      if (binding) {
+        const nextTargets = getBindingTargets(binding);
+        const exists = nextTargets.some((target) => (
+          JSON.stringify(target) === JSON.stringify(payload.target)
+        ));
+        if (!exists) {
+          nextTargets.push(payload.target);
+          setBindingTargets(binding, nextTargets);
+        }
+      }
+    }
+    refreshSessions().catch(() => { });
+    requestBindingsRerender("binding_aux_assign_update");
+  });
+
+  await listen("binding_aux_mute_update", (event) => {
+    let payload = event.payload;
+    if (typeof payload === "string") {
+      try {
+        payload = JSON.parse(payload);
+      } catch {
+        payload = null;
+      }
+    }
+    if (!payload || !payload.binding_id) return;
+    bindingMuteValues[payload.binding_id] = Boolean(payload.muted);
+    const binding = bindings.find((b) => b && b.id === payload.binding_id);
+    if (!binding) return;
+    const primaryTarget = getPrimaryBindingTarget(binding);
+    showMuteOsd(primaryTarget, Boolean(payload.muted));
   });
 
   await listen("midi_event", (event) => {
@@ -1292,7 +1588,6 @@ async function setupListeners() {
     if (!payload || typeof payload !== "object") {
       return;
     }
-
     const binding = findBindingForEvent(payload);
     if (!binding || getBindingTargets(binding).length === 0) {
       return;
@@ -1338,20 +1633,30 @@ async function setupListeners() {
       }
     }
     if (!payload) return;
+    updateIntegrationStateFromEventPayload(payload);
 
     if (payload.binding_id != null && typeof payload.muted === "boolean") {
       bindingMuteValues[payload.binding_id] = payload.muted;
     }
 
-    // Update inline mute buttons
+    // Update inline mute buttons.
+    // Prefer exact binding-id match first; fall back to target match for mirrored bindings.
     const buttons = document.querySelectorAll(".binding-mute-button");
-    const targetJsonToCheck = JSON.stringify(payload.target);
-    buttons.forEach(btn => {
-      // Direct match
-      if (btn.dataset.targetJson === targetJsonToCheck) {
-        btn.innerHTML = payload.muted ? "🔇" : "🔊";
-        btn.classList.toggle("muted", payload.muted);
+    buttons.forEach((btn) => {
+      let shouldUpdate = false;
+      if (payload.binding_id != null && btn.dataset.bindingId === String(payload.binding_id)) {
+        shouldUpdate = true;
+      } else {
+        try {
+          const buttonTarget = JSON.parse(btn.dataset.targetJson || "null");
+          shouldUpdate = targetsMatch(buttonTarget, payload.target);
+        } catch {
+          shouldUpdate = false;
+        }
       }
+      if (!shouldUpdate) return;
+      btn.innerHTML = payload.muted ? "\ud83d\udd07" : "\ud83d\udd0a";
+      btn.classList.toggle("muted", payload.muted);
     });
 
     if (!payload.silent) {
@@ -1374,6 +1679,7 @@ async function setupListeners() {
     if (!payload || typeof payload !== "object") {
       return;
     }
+    updateIntegrationStateFromEventPayload(payload);
 
     if (payload.binding_id && typeof payload.volume === "number") {
       bindingLastValues[payload.binding_id] = payload.volume;
@@ -1532,3 +1838,4 @@ window.addEventListener("load", () => {
 window.addEventListener("beforeunload", () => {
   invoke("stop_midi_device").catch(() => { });
 });
+

@@ -50,6 +50,23 @@ pub struct MidiControl {
     pub msg_type: MidiMessageType,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AuxiliaryControl {
+    pub device_id: String,
+    pub channel: u8,
+    pub controller: u8,
+    #[serde(default)]
+    pub msg_type: MidiMessageType,
+    #[serde(default)]
+    pub control_kind: BindingControlKind,
+    #[serde(default)]
+    pub mode: MidiMode,
+    #[serde(default)]
+    pub deadzone: f32,
+    #[serde(default)]
+    pub debounce_ms: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum BindingControlKind {
     Auto,
@@ -63,10 +80,16 @@ impl Default for BindingControlKind {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum MidiMode {
     Absolute,
     Relative,
+}
+
+impl Default for MidiMode {
+    fn default() -> Self {
+        MidiMode::Absolute
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -345,6 +368,10 @@ pub struct Binding {
     pub mode: MidiMode,
     pub deadzone: f32,
     pub debounce_ms: u64,
+    #[serde(default)]
+    pub mute_control: Option<AuxiliaryControl>,
+    #[serde(default)]
+    pub assign_control: Option<AuxiliaryControl>,
 }
 
 impl Binding {
@@ -534,6 +561,8 @@ mod tests {
             mode: MidiMode::Absolute,
             deadzone: 0.0,
             debounce_ms: 0,
+            mute_control: None,
+            assign_control: None,
         };
 
         let json = serde_json::to_value(binding).expect("binding should serialize");

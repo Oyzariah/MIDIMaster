@@ -1,5 +1,6 @@
 use crate::run_logger;
 use crate::{bindings::BindingKey, model, model::Binding, AppState};
+use std::collections::HashSet;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -26,6 +27,311 @@ fn update_feedback_cache_if_changed(state: &AppState, key: &BindingKey, value: f
         return true;
     }
     true
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct FeedbackControlKey {
+    device_id: String,
+    channel: u8,
+    controller: u8,
+    msg_type: model::MidiMessageType,
+}
+
+impl FeedbackControlKey {
+    fn from_binding(binding: &Binding) -> Self {
+        Self {
+            device_id: binding.device_id.clone(),
+            channel: binding.control.channel,
+            controller: binding.control.controller,
+            msg_type: binding.control.msg_type.clone(),
+        }
+    }
+
+    fn from_aux(mapping: &model::AuxiliaryControl) -> Self {
+        Self {
+            device_id: mapping.device_id.clone(),
+            channel: mapping.channel,
+            controller: mapping.controller,
+            msg_type: mapping.msg_type.clone(),
+        }
+    }
+
+    fn to_binding_key(&self) -> BindingKey {
+        BindingKey {
+            device_id: self.device_id.clone(),
+            channel: self.channel,
+            controller: self.controller,
+            msg_type: self.msg_type.clone(),
+        }
+    }
+}
+
+fn send_feedback_to_control(
+    state: &AppState,
+    control: &FeedbackControlKey,
+    value: f32,
+    silent: bool,
+    context: &str,
+) {
+    let key = control.to_binding_key();
+    let is_note = matches!(control.msg_type, model::MidiMessageType::Note);
+    let user_active = binding_user_active(state, &key, is_note);
+
+    if user_active && silent {
+        run_logger::debug(
+            "bindings_cmd",
+            "set_feedback_silent_ignored_user_active",
+            &format!("context={} key={:?}", context, key),
+        );
+        return;
+    }
+
+    if !update_feedback_cache_if_changed(state, &key, value) {
+        run_logger::debug(
+            "bindings_cmd",
+            "set_feedback_skipped_unchanged",
+            &format!("context={} key={:?} value={}", context, key, value),
+        );
+        return;
+    }
+
+    // Suppress hardware feedback while the user is actively moving this control.
+    if !user_active {
+        if let Ok(mut midi) = state.midi.lock() {
+            let _ = midi.send_feedback(
+                &control.device_id,
+                control.channel,
+                control.controller,
+                value,
+                control.msg_type.clone(),
+            );
+        }
+    }
+}
+
+fn targets_overlap(a: &Binding, b: &Binding) -> bool {
+    let a_targets = a.normalized_targets();
+    let b_targets = b.normalized_targets();
+    a_targets
+        .iter()
+        .any(|t| b_targets.iter().any(|other| other == t))
+}
+
+fn emit_integration_binding_triggered(
+    app: &AppHandle,
+    binding_id: &str,
+    action: &model::BindingAction,
+    value: f32,
+    target_index: usize,
+    target_count: usize,
+    integration_id: &str,
+    kind: &str,
+    data: &serde_json::Value,
+) {
+    let payload = serde_json::json!({
+      "binding_id": binding_id,
+      "action": format!("{:?}", action),
+      "value": value,
+      "target_index": target_index,
+      "target_count": target_count,
+      "is_primary_target": target_index == 0,
+      "target": {
+        "integration_id": integration_id,
+        "kind": kind,
+        "data": data,
+      }
+    });
+    let _ = app.emit("integration_binding_triggered", payload);
+}
+
+fn apply_binding_action_internal(
+    app: &AppHandle,
+    state: &AppState,
+    binding: &Binding,
+    action: model::BindingAction,
+    value: f32,
+) -> Result<bool, String> {
+    let targets = binding.normalized_targets();
+    if targets.is_empty() {
+        return Ok(false);
+    }
+
+    let mut any_applied = false;
+    for (target_index, target) in targets.iter().enumerate() {
+        match (&action, target) {
+            (model::BindingAction::Volume, model::BindingTarget::Master) => {
+                if let Err(err) = state.audio.set_master_volume(value) {
+                    run_logger::warn(
+                        "bindings_cmd",
+                        "apply_action_volume_master_failed",
+                        &format!("binding_id={} error={}", binding.id, err),
+                    );
+                } else {
+                    any_applied = true;
+                }
+            }
+            (model::BindingAction::Volume, model::BindingTarget::Focus) => {
+                if state.audio.focused_session().ok().flatten().is_some() {
+                    if let Err(err) = state.audio.set_focused_session_volume(value) {
+                        run_logger::warn(
+                            "bindings_cmd",
+                            "apply_action_volume_focus_failed",
+                            &format!("binding_id={} error={}", binding.id, err),
+                        );
+                    } else {
+                        any_applied = true;
+                    }
+                }
+            }
+            (model::BindingAction::Volume, model::BindingTarget::Session { session_id }) => {
+                if let Err(err) = state.audio.set_session_volume(session_id, value) {
+                    run_logger::warn(
+                        "bindings_cmd",
+                        "apply_action_volume_session_failed",
+                        &format!(
+                            "binding_id={} session_id={} error={}",
+                            binding.id, session_id, err
+                        ),
+                    );
+                } else {
+                    any_applied = true;
+                }
+            }
+            (model::BindingAction::Volume, model::BindingTarget::Application { name }) => {
+                if let Err(err) = state.audio.set_application_volume(name, value) {
+                    run_logger::warn(
+                        "bindings_cmd",
+                        "apply_action_volume_application_failed",
+                        &format!("binding_id={} app={} error={}", binding.id, name, err),
+                    );
+                } else {
+                    any_applied = true;
+                }
+            }
+            (model::BindingAction::Volume, model::BindingTarget::Device { device_id }) => {
+                if let Err(err) = state.audio.set_device_volume(device_id, value) {
+                    run_logger::warn(
+                        "bindings_cmd",
+                        "apply_action_volume_device_failed",
+                        &format!(
+                            "binding_id={} device_id={} error={}",
+                            binding.id, device_id, err
+                        ),
+                    );
+                } else {
+                    any_applied = true;
+                }
+            }
+            (
+                model::BindingAction::Volume,
+                model::BindingTarget::Integration {
+                    integration_id,
+                    kind,
+                    data,
+                },
+            ) => {
+                emit_integration_binding_triggered(
+                    app,
+                    &binding.id,
+                    &action,
+                    value,
+                    target_index,
+                    targets.len(),
+                    integration_id,
+                    kind,
+                    data,
+                );
+                any_applied = true;
+            }
+            (model::BindingAction::ToggleMute, model::BindingTarget::Master) => {
+                if let Err(err) = state.audio.set_master_mute(value > 0.5) {
+                    run_logger::warn(
+                        "bindings_cmd",
+                        "apply_action_mute_master_failed",
+                        &format!("binding_id={} error={}", binding.id, err),
+                    );
+                } else {
+                    any_applied = true;
+                }
+            }
+            (model::BindingAction::ToggleMute, model::BindingTarget::Focus) => {
+                if state.audio.focused_session().ok().flatten().is_some() {
+                    if let Err(err) = state.audio.set_focused_session_mute(value > 0.5) {
+                        run_logger::warn(
+                            "bindings_cmd",
+                            "apply_action_mute_focus_failed",
+                            &format!("binding_id={} error={}", binding.id, err),
+                        );
+                    } else {
+                        any_applied = true;
+                    }
+                }
+            }
+            (model::BindingAction::ToggleMute, model::BindingTarget::Session { session_id }) => {
+                if let Err(err) = state.audio.set_session_mute(session_id, value > 0.5) {
+                    run_logger::warn(
+                        "bindings_cmd",
+                        "apply_action_mute_session_failed",
+                        &format!(
+                            "binding_id={} session_id={} error={}",
+                            binding.id, session_id, err
+                        ),
+                    );
+                } else {
+                    any_applied = true;
+                }
+            }
+            (model::BindingAction::ToggleMute, model::BindingTarget::Application { name }) => {
+                if let Err(err) = state.audio.set_application_mute(name, value > 0.5) {
+                    run_logger::warn(
+                        "bindings_cmd",
+                        "apply_action_mute_application_failed",
+                        &format!("binding_id={} app={} error={}", binding.id, name, err),
+                    );
+                } else {
+                    any_applied = true;
+                }
+            }
+            (model::BindingAction::ToggleMute, model::BindingTarget::Device { device_id }) => {
+                if let Err(err) = state.audio.set_device_mute(device_id, value > 0.5) {
+                    run_logger::warn(
+                        "bindings_cmd",
+                        "apply_action_mute_device_failed",
+                        &format!(
+                            "binding_id={} device_id={} error={}",
+                            binding.id, device_id, err
+                        ),
+                    );
+                } else {
+                    any_applied = true;
+                }
+            }
+            (
+                model::BindingAction::ToggleMute,
+                model::BindingTarget::Integration {
+                    integration_id,
+                    kind,
+                    data,
+                },
+            ) => {
+                emit_integration_binding_triggered(
+                    app,
+                    &binding.id,
+                    &action,
+                    value,
+                    target_index,
+                    targets.len(),
+                    integration_id,
+                    kind,
+                    data,
+                );
+                any_applied = true;
+            }
+            _ => {}
+        }
+    }
+
+    Ok(any_applied)
 }
 
 #[tauri::command]
@@ -229,58 +535,25 @@ pub fn set_binding_feedback(
     };
 
     let binding = match profile.bindings.iter().find(|b| b.id == binding_id) {
-        Some(b) => b,
+        Some(b) => b.clone(),
         None => return Ok(()),
     };
     let primary_target = binding.primary_target();
+    let affected_targets = binding.normalized_targets();
     let effective_action = action.clone().unwrap_or_else(|| binding.action.clone());
     let action_matches_binding = action.is_none() || effective_action == binding.action;
 
-    let key = BindingKey::from_binding(binding);
-
     let silent = silent.unwrap_or(false);
-
-    let user_active;
     if action_matches_binding {
-        let is_note = matches!(binding.control.msg_type, model::MidiMessageType::Note);
-        user_active = binding_user_active(&state, &key, is_note);
-
-        // Ignore background (silent) sync updates while the user is actively moving.
-        // Otherwise a slightly delayed poll/notification can overwrite the latched value and
-        // make the motor snap or jitter.
-        if user_active && silent {
-            run_logger::debug(
-                "bindings_cmd",
-                "set_feedback_silent_ignored_user_active",
-                &format!("binding_id={}", binding.id),
-            );
-            return Ok(());
-        }
-
-        if !update_feedback_cache_if_changed(&state, &key, value) {
-            run_logger::debug(
-                "bindings_cmd",
-                "set_feedback_skipped_unchanged",
-                &format!("binding_id={} value={}", binding.id, value),
-            );
-            return Ok(());
-        }
-
-        // Send MIDI feedback to hardware.
-        // Suppress during active user movement to avoid motor jitter.
-        if !user_active {
-            if let Ok(mut midi) = state.midi.lock() {
-                let _ = midi.send_feedback(
-                    &binding.device_id,
-                    binding.control.channel,
-                    binding.control.controller,
-                    value,
-                    binding.control.msg_type.clone(),
-                );
-            }
-        }
+        send_feedback_to_control(
+            &state,
+            &FeedbackControlKey::from_binding(&binding),
+            value,
+            silent,
+            &format!("primary:{}", binding.id),
+        );
     } else {
-        run_logger::warn(
+        run_logger::debug(
             "bindings_cmd",
             "set_feedback_action_mismatch",
             &format!(
@@ -288,6 +561,78 @@ pub fn set_binding_feedback(
                 binding.id, binding.action, effective_action
             ),
         );
+    }
+
+    // ToggleMute fan-out:
+    // - keep existing primary behavior above
+    // - also update aux mute controls on affected target owners
+    // - and update all ToggleMute bindings on affected targets
+    if matches!(effective_action, model::BindingAction::ToggleMute) {
+        let mut emitted_controls: HashSet<FeedbackControlKey> = HashSet::new();
+
+        if action_matches_binding {
+            emitted_controls.insert(FeedbackControlKey::from_binding(&binding));
+        }
+
+        for candidate in &profile.bindings {
+            let candidate_targets = candidate.normalized_targets();
+            let is_affected = candidate_targets
+                .iter()
+                .any(|t| affected_targets.iter().any(|affected| affected == t));
+            if !is_affected {
+                continue;
+            }
+
+            if let Some(mute_control) = candidate.mute_control.as_ref() {
+                let aux_key = FeedbackControlKey::from_aux(mute_control);
+                if emitted_controls.insert(aux_key.clone()) {
+                    send_feedback_to_control(
+                        &state,
+                        &aux_key,
+                        value,
+                        silent,
+                        &format!("mute_aux:{}", candidate.id),
+                    );
+                }
+            }
+
+            if matches!(candidate.action, model::BindingAction::ToggleMute) {
+                let primary_key = FeedbackControlKey::from_binding(candidate);
+                if emitted_controls.insert(primary_key.clone()) {
+                    send_feedback_to_control(
+                        &state,
+                        &primary_key,
+                        value,
+                        silent,
+                        &format!("toggle_binding:{}", candidate.id),
+                    );
+                }
+            }
+        }
+    }
+    if matches!(effective_action, model::BindingAction::Volume) {
+        let mut emitted_controls: HashSet<FeedbackControlKey> = HashSet::new();
+        if action_matches_binding {
+            emitted_controls.insert(FeedbackControlKey::from_binding(&binding));
+        }
+        for candidate in &profile.bindings {
+            if !matches!(candidate.action, model::BindingAction::Volume) {
+                continue;
+            }
+            if !targets_overlap(candidate, &binding) {
+                continue;
+            }
+            let primary_key = FeedbackControlKey::from_binding(candidate);
+            if emitted_controls.insert(primary_key.clone()) {
+                send_feedback_to_control(
+                    &state,
+                    &primary_key,
+                    value,
+                    silent,
+                    &format!("volume_binding:{}", candidate.id),
+                );
+            }
+        }
     }
 
     if let Ok(mut last_update) = state.osd_last_update.lock() {
@@ -402,4 +747,59 @@ pub fn set_binding_feedback(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn apply_binding_action(
+    app: AppHandle,
+    state: State<AppState>,
+    binding_id: String,
+    action: Option<model::BindingAction>,
+    value: f32,
+    silent: Option<bool>,
+) -> Result<(), String> {
+    let binding = {
+        let profile_guard = state.active_profile.lock().map_err(|_| "Lock poisoned")?;
+        let profile = match profile_guard.as_ref() {
+            Some(p) => p,
+            None => return Ok(()),
+        };
+        match profile.bindings.iter().find(|b| b.id == binding_id) {
+            Some(b) => b.clone(),
+            None => return Ok(()),
+        }
+    };
+
+    let effective_action = action.unwrap_or_else(|| binding.action.clone());
+    if !matches!(
+        effective_action,
+        model::BindingAction::Volume | model::BindingAction::ToggleMute
+    ) {
+        run_logger::warn(
+            "bindings_cmd",
+            "apply_binding_action_unsupported",
+            &format!("binding_id={} action={:?}", binding.id, effective_action),
+        );
+        return Ok(());
+    }
+
+    let any_applied =
+        apply_binding_action_internal(&app, &state, &binding, effective_action.clone(), value)?;
+    if !any_applied {
+        run_logger::warn(
+            "bindings_cmd",
+            "apply_binding_action_no_target_applied",
+            &format!("binding_id={} action={:?}", binding.id, effective_action),
+        );
+        return Ok(());
+    }
+
+    set_binding_feedback(
+        app,
+        state,
+        binding.id.clone(),
+        value,
+        Some(effective_action),
+        silent,
+    )
 }

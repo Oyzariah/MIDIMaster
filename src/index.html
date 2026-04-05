@@ -40,6 +40,7 @@
         <div class="alert-panel-body">
           <p id="alert-message"></p>
           <div class="alert-panel-actions">
+            <button id="alert-cancel" type="button" class="secondary hidden">Cancel</button>
             <button id="alert-ok" type="button">OK</button>
           </div>
         </div>
@@ -92,6 +93,7 @@
           <button id="binding-add-footer-button" type="button" class="binding-add-button">＋ Create binding</button>
         </div>
       </div>
+
     </section>
   </main>
 
@@ -108,15 +110,50 @@
       </div>
     </div>
 
+    <div id="binding-config-panel" class="target-panel hidden">
+      <div class="target-panel-content binding-config-content">
+        <div class="target-panel-header">
+          <span>Fader Configuration</span>
+          <button id="binding-config-close" type="button" class="target-panel-close">×</button>
+        </div>
+        <div class="binding-config-body">
+          <label class="binding-config-row binding-config-name-row">
+            <span class="binding-config-title">Name</span>
+            <input id="binding-config-name" type="text" placeholder="Binding name" name="binding-config-name" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" />
+          </label>
+          <div class="binding-config-row">
+            <span class="binding-config-title">Mute mapping</span>
+            <div class="binding-config-actions">
+              <span id="binding-config-mute-label" class="binding-config-label">Not mapped</span>
+              <button id="binding-config-mute-learn" type="button">Learn</button>
+              <button id="binding-config-mute-clear" type="button" class="secondary">Clear</button>
+            </div>
+          </div>
+          <div class="binding-config-row">
+            <span class="binding-config-title">Assign mapping</span>
+            <div class="binding-config-actions">
+              <span id="binding-config-assign-label" class="binding-config-label">Not mapped</span>
+              <button id="binding-config-assign-learn" type="button">Learn</button>
+              <button id="binding-config-assign-clear" type="button" class="secondary">Clear</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
   <div id="learn-panel" class="target-panel hidden">
     <div class="target-panel-content learn-panel-content">
       <div class="target-panel-header">
-        <span>Waiting for MIDI Input</span>
+        <span id="learn-panel-title">Waiting for MIDI Input</span>
         <button id="learn-panel-close" type="button" class="target-panel-close">×</button>
       </div>
       <div class="learn-panel-body">
-        <div class="learn-panel-spinner" aria-hidden="true"></div>
+        <div id="learn-panel-spinner" class="learn-panel-spinner" aria-hidden="true"></div>
         <p id="learn-panel-message">Move a control on your MIDI device to create a binding.</p>
+        <div id="learn-panel-actions" class="learn-panel-actions hidden">
+          <button id="learn-panel-cancel" type="button" class="secondary">Cancel</button>
+          <button id="learn-panel-confirm" type="button">Transfer</button>
+        </div>
       </div>
     </div>
   </div>

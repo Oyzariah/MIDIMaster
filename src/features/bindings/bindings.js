@@ -65,11 +65,6 @@ export function createBindingsFeature({
 
   const getVol = (typeof getVolumeForTarget === "function") ? getVolumeForTarget : (() => null);
   const getMuted = (typeof getMuteForTarget === "function") ? getMuteForTarget : (() => false);
-  const trigIntegration = (typeof triggerIntegration === "function") ? triggerIntegration : (async () => false);
-  const extractInteg = (typeof extractIntegrationTarget === "function") ? extractIntegrationTarget : (() => null);
-  const showVolOsd = (typeof showVolumeOsd === "function") ? showVolumeOsd : (() => { });
-  const showMutOsd = (typeof showMuteOsd === "function") ? showMuteOsd : (() => { });
-
   const saveProfile = (typeof saveBindingsForProfile === "function") ? saveBindingsForProfile : (async () => { });
   const getHost = (typeof getPluginHost === "function") ? getPluginHost : (() => null);
 
@@ -107,11 +102,16 @@ export function createBindingsFeature({
     return Boolean(active && active.closest(".binding-item") && active.tagName === "SELECT");
   }
 
+  function isBindingConfigOpen() {
+    return Boolean(d.bindingConfigPanel && !d.bindingConfigPanel.classList.contains("hidden"));
+  }
+
   function isBindingInteractionActive() {
     return isBindingTargetMenuOpen()
       || isTargetPanelOpen()
       || isBindingNameEditing()
-      || isBindingSelectEditing();
+      || isBindingSelectEditing()
+      || isBindingConfigOpen();
   }
 
   function normalizeControlKind(raw) {
@@ -191,13 +191,343 @@ export function createBindingsFeature({
     });
   }
 
-  function beginBindingEdit(bindingId) {
+  let configBindingId = null;
+  let configLearnField = null;
+  let configLearnTimer = null;
+  let transferPrompt = null;
+  const nameDrafts = new Map();
+  let pendingRerender = false;
+  const defaultLearnPanelTitle = "Waiting for MIDI Input";
+  const defaultLearnPanelMessage = "Move a control on your MIDI device to create a binding.";
+
+  function clearTransferPrompt() {
+    transferPrompt = null;
+  }
+
+  function setTransferPrompt(nextPrompt) {
+    transferPrompt = nextPrompt || null;
+    updateAuxLearnUi();
+  }
+
+  function hasLearnPanelSupport() {
+    return Boolean(d.learnPanel);
+  }
+
+  function resetLearnPanelUi() {
+    if (!hasLearnPanelSupport()) return;
+    if (d.learnPanelTitle) d.learnPanelTitle.textContent = defaultLearnPanelTitle;
+    if (d.learnPanelMessage) d.learnPanelMessage.textContent = defaultLearnPanelMessage;
+    if (d.learnPanelSpinner) d.learnPanelSpinner.classList.remove("hidden");
+    if (d.learnPanelActions) d.learnPanelActions.classList.add("hidden");
+    if (d.learnPanelConfirm) d.learnPanelConfirm.textContent = "Transfer";
+  }
+
+  function showLearnPanel() {
+    if (!hasLearnPanelSupport()) return;
+    d.learnPanel.classList.remove("hidden");
+  }
+
+  function hideLearnPanel() {
+    if (!hasLearnPanelSupport()) return;
+    d.learnPanel.classList.add("hidden");
+    resetLearnPanelUi();
+  }
+
+  function setLearnPanelWaiting() {
+    if (!hasLearnPanelSupport()) return;
+    if (d.learnPanelTitle) d.learnPanelTitle.textContent = defaultLearnPanelTitle;
+    if (d.learnPanelMessage) d.learnPanelMessage.textContent = defaultLearnPanelMessage;
+    if (d.learnPanelSpinner) d.learnPanelSpinner.classList.remove("hidden");
+    if (d.learnPanelActions) d.learnPanelActions.classList.add("hidden");
+    showLearnPanel();
+  }
+
+  function setLearnPanelTransfer(message) {
+    if (!hasLearnPanelSupport()) return;
+    if (d.learnPanelTitle) d.learnPanelTitle.textContent = "Transfer Mapping";
+    if (d.learnPanelMessage) d.learnPanelMessage.textContent = message || "";
+    if (d.learnPanelSpinner) d.learnPanelSpinner.classList.add("hidden");
+    if (d.learnPanelActions) d.learnPanelActions.classList.remove("hidden");
+    if (d.learnPanelConfirm) d.learnPanelConfirm.textContent = "Transfer";
+    showLearnPanel();
+  }
+
+  function updateAuxLearnUi() {
+    const muteLearn = d.bindingConfigMuteLearn;
+    const assignLearn = d.bindingConfigAssignLearn;
+    const muteClear = d.bindingConfigMuteClear;
+    const assignClear = d.bindingConfigAssignClear;
+    const transferLocked = Boolean(transferPrompt);
+
+    if (muteLearn) {
+      const active = configLearnField === "mute_control";
+      muteLearn.classList.remove("is-learning");
+      muteLearn.textContent = "Learn";
+      muteLearn.disabled = transferLocked || Boolean(configLearnField && !active);
+    }
+    if (assignLearn) {
+      const active = configLearnField === "assign_control";
+      assignLearn.classList.remove("is-learning");
+      assignLearn.textContent = "Learn";
+      assignLearn.disabled = transferLocked || Boolean(configLearnField && !active);
+    }
+
+    const lockClear = transferLocked || Boolean(configLearnField);
+    if (muteClear) muteClear.disabled = lockClear;
+    if (assignClear) assignClear.disabled = lockClear;
+  }
+
+  function stopAuxLearn(options = {}) {
+    const closePanel = options.closePanel !== false;
+    if (configLearnTimer) {
+      clearInterval(configLearnTimer);
+      configLearnTimer = null;
+    }
+    configLearnField = null;
+    updateAuxLearnUi();
+    if (closePanel) {
+      hideLearnPanel();
+    }
+  }
+
+  function formatMidiControlLabel(control) {
+    if (!control) return "Not mapped";
+    const msg = control.msg_type === "PitchBend"
+      ? "PB"
+      : (control.msg_type === "Note" ? "Note" : "CC");
+    return `Ch ${control.channel} ${msg} ${control.controller}`;
+  }
+
+  function normalizeAuxControl(learned) {
+    if (!learned || typeof learned !== "object") return null;
+    return {
+      device_id: learned.device_id,
+      channel: learned.channel,
+      controller: learned.controller,
+      msg_type: learned.msg_type || "ControlChange",
+      control_kind: learned.control_kind || "Auto",
+      mode: "Absolute",
+      deadzone: 0,
+      debounce_ms: 0,
+    };
+  }
+
+  function controlsEqual(a, b) {
+    if (!a || !b) return false;
+    return String(a.device_id || "") === String(b.device_id || "")
+      && Number(a.channel) === Number(b.channel)
+      && Number(a.controller) === Number(b.controller)
+      && String(a.msg_type || "ControlChange") === String(b.msg_type || "ControlChange");
+  }
+
+  function closeConfigModal() {
+    stopAuxLearn();
+    clearTransferPrompt();
+    configBindingId = null;
+    if (d.bindingConfigPanel) d.bindingConfigPanel.classList.add("hidden");
+  }
+
+  function getBindingById(bindingId) {
+    return getB().find((binding) => binding.id === bindingId) || null;
+  }
+
+  function ensureAuxShape(binding) {
+    if (!binding) return;
+    if (!("mute_control" in binding)) binding.mute_control = null;
+    if (!("assign_control" in binding)) binding.assign_control = null;
+  }
+
+  function renderConfigModal() {
+    const binding = getBindingById(configBindingId);
+    if (!binding) {
+      closeConfigModal();
+      return;
+    }
+    ensureAuxShape(binding);
+    if (d.bindingConfigName) d.bindingConfigName.value = binding.name?.trim() || "";
+    if (d.bindingConfigMuteLabel) d.bindingConfigMuteLabel.textContent = formatMidiControlLabel(binding.mute_control);
+    if (d.bindingConfigAssignLabel) d.bindingConfigAssignLabel.textContent = formatMidiControlLabel(binding.assign_control);
+    updateAuxLearnUi();
+  }
+
+  async function persistBinding(binding) {
+    await invoke("add_binding", { binding });
+    await saveProfile();
+    try {
+      getHost()?.setBindings?.(getB());
+    } catch { }
+  }
+
+  function findMappingConflict(bindingId, field, mapping) {
+    const bindings = getB();
+    for (const binding of bindings) {
+      if (binding.id === bindingId && field !== "control" && controlsEqual(binding[field], mapping)) {
+        continue;
+      }
+      if (binding.id !== bindingId && controlsEqual({
+        device_id: binding.device_id,
+        channel: binding.control?.channel,
+        controller: binding.control?.controller,
+        msg_type: binding.control?.msg_type || "ControlChange",
+      }, mapping)) {
+        return { binding, field: "control" };
+      }
+      if (controlsEqual(binding.mute_control, mapping)) {
+        return { binding, field: "mute_control" };
+      }
+      if (controlsEqual(binding.assign_control, mapping)) {
+        return { binding, field: "assign_control" };
+      }
+    }
+    return null;
+  }
+
+  async function commitTransferPrompt() {
+    if (!transferPrompt) return;
+    const { field, mapping, conflict } = transferPrompt;
+    clearTransferPrompt();
+    const binding = getBindingById(configBindingId);
+    if (!binding) return;
+    if (!conflict || !conflict.binding) return;
+
+    if (conflict.field === "control") {
+      await invoke("remove_binding", { binding: conflict.binding });
+      const nextBindings = getB().filter((b) => b.id !== conflict.binding.id);
+      setB(nextBindings);
+      await saveProfile();
+    } else {
+      conflict.binding[conflict.field] = null;
+      await persistBinding(conflict.binding);
+    }
+
+    binding[field] = mapping;
+    await persistBinding(binding);
+    hideLearnPanel();
+    renderConfigModal();
+    renderBindings();
+  }
+
+  async function applyAuxMapping(field, mapping) {
+    const binding = getBindingById(configBindingId);
+    if (!binding) return;
+    ensureAuxShape(binding);
+
+    const conflict = findMappingConflict(binding.id, field, mapping);
+    if (conflict) {
+      const ownerName = conflict.binding.name || "Binding";
+      const ownerSlot = conflict.field === "control"
+        ? "Primary"
+        : (conflict.field === "mute_control" ? "Mute" : "Assign");
+      const message = conflict.field === "control"
+        ? `This control is the primary mapping on "${ownerName}". Transferring it here will delete that binding. Continue?`
+        : `This control is already mapped as ${ownerSlot} on "${ownerName}". Transfer it here?`;
+      setTransferPrompt({
+        field,
+        mapping,
+        conflict,
+        message,
+      });
+      setLearnPanelTransfer(message);
+      return;
+    }
+
+    binding[field] = mapping;
+    await persistBinding(binding);
+    hideLearnPanel();
+    renderConfigModal();
+    renderBindings();
+  }
+
+  async function startAuxLearn(field) {
+    const binding = getBindingById(configBindingId);
+    if (!binding) return;
+    if (transferPrompt) return;
+    if (configLearnField) return;
+    configLearnField = field;
+    updateAuxLearnUi();
+    setLearnPanelWaiting();
+    await invoke("start_midi_learn");
+    if (configLearnTimer) clearInterval(configLearnTimer);
+    configLearnTimer = setInterval(async () => {
+      try {
+        const learned = await invoke("consume_learned_control");
+        if (!learned) return;
+        const targetField = configLearnField;
+        stopAuxLearn({ closePanel: false });
+        if (!targetField) return;
+        const mapping = normalizeAuxControl(learned);
+        await applyAuxMapping(targetField, mapping);
+      } catch {
+        stopAuxLearn();
+      }
+    }, 200);
+  }
+
+  function openConfigModal(bindingId) {
+    configBindingId = bindingId;
+    if (d.bindingConfigPanel) d.bindingConfigPanel.classList.remove("hidden");
+    renderConfigModal();
+  }
+
+  function beginBindingEdit(bindingId, forceInline = false) {
+    const binding = getBindingById(bindingId);
+    if (!binding) return;
+    if (!forceInline && !effectiveIsButton(binding)) {
+      openConfigModal(bindingId);
+      return;
+    }
     setEditingId(bindingId);
     setPendingFocusId(bindingId);
     renderBindings();
   }
 
+  function isInlineNameEditingActive() {
+    return Boolean(getEditingId());
+  }
+
+  function isBindingDragActive() {
+    return Boolean(getDrag());
+  }
+
+  function requestSafeRerender(_reason = "") {
+    if (isInlineNameEditingActive() || isBindingDragActive()) {
+      pendingRerender = true;
+      return;
+    }
+    renderBindings();
+  }
+
+  function flushPendingRerender({ fallbackRender = false } = {}) {
+    if (pendingRerender) {
+      pendingRerender = false;
+      renderBindings();
+      return true;
+    }
+    if (fallbackRender) {
+      renderBindings();
+      return true;
+    }
+    return false;
+  }
+
   function renderBindings() {
+    if (isBindingDragActive()) {
+      pendingRerender = true;
+      return;
+    }
+
+    const editingIdAtRenderStart = getEditingId();
+    const activeEl = document.activeElement;
+    const activeIsNameInput = Boolean(activeEl && activeEl.classList?.contains("binding-name-input"));
+    const activeBindingId = activeIsNameInput ? String(activeEl.dataset?.bindingId || "") : "";
+    const shouldRestoreEditingFocus = Boolean(
+      editingIdAtRenderStart
+      && activeBindingId
+      && activeBindingId === String(editingIdAtRenderStart),
+    );
+    const selectionStart = shouldRestoreEditingFocus ? activeEl.selectionStart : null;
+    const selectionEnd = shouldRestoreEditingFocus ? activeEl.selectionEnd : null;
+
     const bindings = getB();
     d.bindingsContainer.innerHTML = "";
 
@@ -228,23 +558,68 @@ export function createBindingsFeature({
         if (isEditing) {
           nameInput = document.createElement("input");
           nameInput.className = "binding-name-input";
-          nameInput.value = binding.name?.trim() || fallbackName;
+          nameInput.dataset.bindingId = String(binding.id || "");
+          nameInput.name = `binding-name-${binding.id || "new"}`;
+          nameInput.autocomplete = "new-password";
+          nameInput.autocorrect = "off";
+          nameInput.autocapitalize = "off";
+          nameInput.spellcheck = false;
+          nameInput.setAttribute("data-lpignore", "true");
+          nameInput.value = (nameDrafts.get(binding.id) ?? binding.name?.trim()) || fallbackName;
+          nameInput.addEventListener("input", () => {
+            nameDrafts.set(binding.id, nameInput.value);
+            if (binding.id === getPendingFocusId()) {
+              setPendingFocusId(null);
+            }
+          });
           nameInput.addEventListener("keydown", (event) => {
+            if (binding.id === getPendingFocusId() && event.key.length === 1) {
+              setPendingFocusId(null);
+            }
             if (event.key === "Enter") {
               event.preventDefault();
               nameInput.blur();
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              nameDrafts.delete(binding.id);
+              setEditingId(null);
+              setPendingFocusId(null);
+              flushPendingRerender({ fallbackRender: true });
             }
           });
           nameInput.addEventListener("blur", async () => {
             if (binding.id !== getEditingId()) {
               return;
             }
-            const trimmedName = nameInput.value.trim();
+            // While pending auto-focus is active for a newly created binding,
+            // ignore transient blur events from background rerenders/feedback updates.
+            if (binding.id === getPendingFocusId()) {
+              return;
+            }
+            // A rerender can briefly blur/recreate the input. Wait one tick and
+            // only commit if we are no longer editing a binding-name input.
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            if (binding.id !== getEditingId()) {
+              return;
+            }
+            if (binding.id === getPendingFocusId()) {
+              return;
+            }
+            const activeEl = document.activeElement;
+            if (activeEl && activeEl.classList?.contains("binding-name-input")) {
+              return;
+            }
+            const draftValue = nameDrafts.get(binding.id);
+            const trimmedName = (draftValue ?? nameInput.value).trim();
+            nameDrafts.delete(binding.id);
             binding.name = trimmedName || fallbackName;
             setEditingId(null);
+            setPendingFocusId(null);
             await invoke("add_binding", { binding });
             await saveProfile();
-            renderBindings();
+            flushPendingRerender({ fallbackRender: true });
           });
           nameField = nameInput;
         } else {
@@ -382,7 +757,9 @@ export function createBindingsFeature({
 
           if (!isButton) {
             const primaryTarget = getPrimaryTarget(binding);
-            const newVolume = getVol(primaryTarget);
+            const newVolume = (bindingLastValues[binding.id] != null)
+              ? Number(bindingLastValues[binding.id])
+              : getVol(primaryTarget);
             if (volumeSlider) {
               // Keep current slider position if the new primary target cannot report
               // a concrete volume (common for some integration targets).
@@ -395,7 +772,9 @@ export function createBindingsFeature({
               volumeSlider.dataset.targetJson = JSON.stringify(primaryTarget);
             }
 
-            const newMuted = getMuted(primaryTarget);
+            const newMuted = (bindingMuteValues[binding.id] != null)
+              ? Boolean(bindingMuteValues[binding.id])
+              : getMuted(primaryTarget);
             if (muteButton) {
               muteButton.innerHTML = newMuted ? "\ud83d\udd07" : "\ud83d\udd0a";
               muteButton.classList.toggle("muted", newMuted);
@@ -424,7 +803,9 @@ export function createBindingsFeature({
           volumeSlider.style.visibility = "hidden";
         } else {
           const primaryTarget = getPrimaryTarget(binding);
-          const v = getVol(primaryTarget);
+          const v = (bindingLastValues[binding.id] != null)
+            ? Number(bindingLastValues[binding.id])
+            : getVol(primaryTarget);
 
           if (v !== null) bindingLastValues[binding.id] = v;
           volumeSlider.value = v ?? bindingLastValues[binding.id] ?? 0;
@@ -440,63 +821,13 @@ export function createBindingsFeature({
             bindingLastValues[binding.id] = vol;
             updateSliderFill(e.target);
             try {
-              let invoked = false;
-              const targets = getTargets(binding);
-              for (const target of targets) {
-                if (target === "Master" || target?.Master != null) {
-                  await invoke("set_master_volume", { volume: vol });
-                  invoked = true;
-                  continue;
-                }
-                if (target === "Focus" || target?.Focus != null) {
-                  continue;
-                }
-                const appContainer = target.Application || target.application;
-                if (appContainer) {
-                  const appName = appContainer.name ?? target.name;
-                  await invoke("set_application_volume", { name: appName, volume: vol });
-                  invoked = true;
-                  continue;
-                }
-                const sessionContainer = target.Session || target.session;
-                if (sessionContainer) {
-                  const sessId = sessionContainer.session_id ?? sessionContainer.sessionId ?? target.session_id;
-                  await invoke("set_session_volume", { sessionId: sessId, volume: vol });
-                  invoked = true;
-                  continue;
-                }
-                const deviceContainer = target.Device || target.device;
-                if (deviceContainer) {
-                  let devId = deviceContainer.device_id ?? deviceContainer.deviceId ?? target.device_id;
-                  if (devId && typeof devId === "string") {
-                    devId = devId.trim();
-                    if (!devId.startsWith("recording:") && !devId.startsWith("playback:")) {
-                      const recordingDevices = getRecording();
-                      const playbackDevices = getPlayback();
-                      if (Array.isArray(recordingDevices) && recordingDevices.some((d) => d && d.id === devId)) {
-                        devId = `recording:${devId}`;
-                      } else if (Array.isArray(playbackDevices) && playbackDevices.some((d) => d && d.id === devId)) {
-                        devId = `playback:${devId}`;
-                      }
-                    }
-                  }
-                  await invoke("set_device_volume", { deviceId: devId, volume: vol });
-                  invoked = true;
-                }
-              }
-              if (await trigIntegration(binding, "Volume", vol)) invoked = true;
-
-              if (invoked) {
-                const primaryTarget = getPrimaryTarget(binding);
-                showVolOsd(primaryTarget, vol);
-
-                volumeSlider.dataset.lastMidiUpdate = Date.now();
-                for (const target of getTargets(binding)) {
-                  if (!extractInteg(target)) {
-                    invoke("update_midi_feedback", { target, value: vol, action: "Volume" });
-                  }
-                }
-              }
+              volumeSlider.dataset.lastMidiUpdate = Date.now();
+              await invoke("apply_binding_action", {
+                bindingId: binding.id,
+                action: "Volume",
+                value: vol,
+                silent: false,
+              });
             } catch (err) {
               console.error("Failed to set volume:", err);
             }
@@ -514,6 +845,7 @@ export function createBindingsFeature({
         muteButton.innerHTML = isMuted ? "\ud83d\udd07" : "\ud83d\udd0a";
         muteButton.classList.toggle("muted", isMuted);
         muteButton.dataset.targetJson = JSON.stringify(primaryTarget);
+        muteButton.dataset.bindingId = binding.id;
 
         if (isButton) {
           muteButton.disabled = true;
@@ -524,62 +856,21 @@ export function createBindingsFeature({
           bindingInteractionTimes[binding.id] = Date.now();
           const currentlyMuted = muteButton.classList.contains("muted");
           const newMuted = !currentlyMuted;
+          muteButton.innerHTML = newMuted ? "\ud83d\udd07" : "\ud83d\udd0a";
+          muteButton.classList.toggle("muted", newMuted);
+          bindingMuteValues[binding.id] = newMuted;
 
           try {
-            let invoked = false;
-            const targets = getTargets(binding);
-            for (const target of targets) {
-              if (target === "Master" || target?.Master != null) {
-                await invoke("set_master_mute", { muted: newMuted });
-                invoked = true;
-                continue;
-              }
-              if (target === "Focus" || target?.Focus != null) {
-                continue;
-              }
-              const appContainer = target.Application || target.application;
-              if (appContainer) {
-                const appName = appContainer.name ?? target.name;
-                await invoke("set_application_mute", { name: appName, muted: newMuted });
-                invoked = true;
-                continue;
-              }
-              const sessionContainer = target.Session || target.session;
-              if (sessionContainer) {
-                const sessId = sessionContainer.session_id ?? sessionContainer.sessionId ?? target.session_id;
-                await invoke("set_session_mute", { sessionId: sessId, muted: newMuted });
-                invoked = true;
-                continue;
-              }
-              const deviceContainer = target.Device || target.device;
-              if (deviceContainer) {
-                let devId = deviceContainer.device_id ?? deviceContainer.deviceId ?? target.device_id;
-                if (devId && typeof devId === "string") {
-                  devId = devId.trim();
-                  if (!devId.startsWith("recording:") && !devId.startsWith("playback:")) {
-                    const recordingDevices = getRecording();
-                    const playbackDevices = getPlayback();
-                    if (Array.isArray(recordingDevices) && recordingDevices.some((d) => d && d.id === devId)) {
-                      devId = `recording:${devId}`;
-                    } else if (Array.isArray(playbackDevices) && playbackDevices.some((d) => d && d.id === devId)) {
-                      devId = `playback:${devId}`;
-                    }
-                  }
-                }
-                if (devId) {
-                  await invoke("set_device_mute", { device_id: devId, muted: newMuted });
-                  invoked = true;
-                }
-              }
-            }
-            if (await trigIntegration(binding, "ToggleMute", newMuted ? 1.0 : 0.0)) invoked = true;
-
-            if (invoked) {
-              showMutOsd(getPrimaryTarget(binding), newMuted);
-              muteButton.innerHTML = newMuted ? "\ud83d\udd07" : "\ud83d\udd0a";
-              muteButton.classList.toggle("muted", newMuted);
-            }
+            await invoke("apply_binding_action", {
+              bindingId: binding.id,
+              action: "ToggleMute",
+              value: newMuted ? 1.0 : 0.0,
+              silent: false,
+            });
           } catch (err) {
+            muteButton.innerHTML = currentlyMuted ? "\ud83d\udd07" : "\ud83d\udd0a";
+            muteButton.classList.toggle("muted", currentlyMuted);
+            bindingMuteValues[binding.id] = currentlyMuted;
             console.error("Failed to toggle mute:", err);
           }
         });
@@ -610,7 +901,7 @@ export function createBindingsFeature({
         editButton.type = "button";
         editButton.className = "binding-action";
         editButton.textContent = "\u270e";
-        editButton.title = "Edit name";
+        editButton.title = isButton ? "Edit name" : "Configure fader";
         editButton.addEventListener("click", () => {
           beginBindingEdit(binding.id);
         });
@@ -644,8 +935,15 @@ export function createBindingsFeature({
         item.appendChild(row);
         d.bindingsContainer.appendChild(item);
 
-        if (binding.id === getPendingFocusId() && nameInput) {
-          setPendingFocusId(null);
+        if (nameInput && shouldRestoreEditingFocus && String(binding.id) === String(editingIdAtRenderStart)) {
+          nameInput.focus({ preventScroll: true });
+          if (Number.isInteger(selectionStart) && Number.isInteger(selectionEnd)) {
+            const max = nameInput.value.length;
+            const safeStart = Math.max(0, Math.min(selectionStart, max));
+            const safeEnd = Math.max(safeStart, Math.min(selectionEnd, max));
+            nameInput.setSelectionRange(safeStart, safeEnd);
+          }
+        } else if (binding.id === getPendingFocusId() && nameInput) {
           setEditingId(binding.id);
           nameInput.focus();
           nameInput.select();
@@ -780,6 +1078,8 @@ export function createBindingsFeature({
       renderBindings();
       await saveProfile();
     }
+
+    flushPendingRerender();
   }
 
   function cancelBindingDrag() {
@@ -793,11 +1093,113 @@ export function createBindingsFeature({
     }
     setDrag(null);
     document.body.classList.remove("dragging-binding");
+    flushPendingRerender();
   }
+
+  function bindConfigModalUi() {
+    const cancelAuxLearnFlow = () => {
+      if (!configBindingId) return;
+      clearTransferPrompt();
+      stopAuxLearn();
+      renderConfigModal();
+    };
+
+    if (d.bindingConfigPanel) {
+      d.bindingConfigPanel.addEventListener("click", (event) => {
+        if (event.target === d.bindingConfigPanel) {
+          closeConfigModal();
+        }
+      });
+    }
+    if (d.bindingConfigClose) {
+      d.bindingConfigClose.addEventListener("click", closeConfigModal);
+    }
+    if (d.bindingConfigName) {
+      d.bindingConfigName.addEventListener("change", async () => {
+        const binding = getBindingById(configBindingId);
+        if (!binding) return;
+        binding.name = d.bindingConfigName.value.trim() || binding.name;
+        await persistBinding(binding);
+        renderBindings();
+      });
+    }
+    if (d.bindingConfigMuteLearn) {
+      d.bindingConfigMuteLearn.addEventListener("click", async () => {
+        await startAuxLearn("mute_control");
+      });
+    }
+    if (d.bindingConfigAssignLearn) {
+      d.bindingConfigAssignLearn.addEventListener("click", async () => {
+        await startAuxLearn("assign_control");
+      });
+    }
+    if (d.bindingConfigMuteClear) {
+      d.bindingConfigMuteClear.addEventListener("click", async () => {
+        if (transferPrompt) return;
+        const binding = getBindingById(configBindingId);
+        if (!binding) return;
+        binding.mute_control = null;
+        await persistBinding(binding);
+        renderConfigModal();
+      });
+    }
+    if (d.bindingConfigAssignClear) {
+      d.bindingConfigAssignClear.addEventListener("click", async () => {
+        if (transferPrompt) return;
+        const binding = getBindingById(configBindingId);
+        if (!binding) return;
+        binding.assign_control = null;
+        await persistBinding(binding);
+        renderConfigModal();
+      });
+    }
+
+    if (d.learnPanel) {
+      d.learnPanel.addEventListener("click", (event) => {
+        if (event.target !== d.learnPanel) return;
+        if (!configBindingId) return;
+        cancelAuxLearnFlow();
+      });
+    }
+    if (d.learnPanelClose) {
+      d.learnPanelClose.addEventListener("click", () => {
+        if (!configBindingId) return;
+        cancelAuxLearnFlow();
+      });
+    }
+    if (d.learnPanelCancel) {
+      d.learnPanelCancel.addEventListener("click", () => {
+        if (!configBindingId) return;
+        cancelAuxLearnFlow();
+      });
+    }
+    if (d.learnPanelConfirm) {
+      d.learnPanelConfirm.addEventListener("click", async () => {
+        if (!configBindingId || !transferPrompt) return;
+        await commitTransferPrompt();
+      });
+    }
+  }
+
+  document.addEventListener("pointerdown", (event) => {
+    const pendingId = getPendingFocusId();
+    if (!pendingId) return;
+    const target = event.target;
+    if (target && target.classList?.contains("binding-name-input")) {
+      return;
+    }
+    setPendingFocusId(null);
+  }, true);
+
+  bindConfigModalUi();
+  updateAuxLearnUi();
 
   return {
     updateSliderFill,
     isBindingInteractionActive,
+    isInlineNameEditingActive,
+    requestSafeRerender,
+    flushPendingRerender,
     updateBindingValues,
     beginBindingEdit,
     renderBindings,

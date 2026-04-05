@@ -46,11 +46,15 @@ export function createTargetCore({
   getPlaybackDevices,
   getRecordingDevices,
   getPluginHost,
+  getIntegrationTargetState,
 }) {
   const getSess = (typeof getSessions === "function") ? getSessions : (() => []);
   const getPlayback = (typeof getPlaybackDevices === "function") ? getPlaybackDevices : (() => []);
   const getRecording = (typeof getRecordingDevices === "function") ? getRecordingDevices : (() => []);
   const getHost = (typeof getPluginHost === "function") ? getPluginHost : (() => null);
+  const getIntegrationState = (typeof getIntegrationTargetState === "function")
+    ? getIntegrationTargetState
+    : (() => null);
 
   function resolveOsdTarget(target, focusSession) {
     const sessions = getSess();
@@ -304,6 +308,14 @@ export function createTargetCore({
       return device?.volume ?? null;
     }
 
+    const integration = target.Integration || target.integration;
+    if (integration && integration.integration_id) {
+      const integrationState = getIntegrationState(target);
+      if (integrationState && typeof integrationState.volume === "number") {
+        return integrationState.volume;
+      }
+    }
+
     return null;
   }
 
@@ -360,6 +372,14 @@ export function createTargetCore({
       return device ? device.volume : null;
     }
 
+    const integration = target.Integration || target.integration;
+    if (integration && integration.integration_id) {
+      const integrationState = getIntegrationState(target);
+      if (integrationState && typeof integrationState.volume === "number") {
+        return integrationState.volume;
+      }
+    }
+
     return null;
   }
 
@@ -403,6 +423,14 @@ export function createTargetCore({
       const device = playbackDevices.find((d) => d.id === deviceId)
         || recordingDevices.find((d) => d.id === deviceId);
       return device ? device.muted : false;
+    }
+
+    const integration = target.Integration || target.integration;
+    if (integration && integration.integration_id) {
+      const integrationState = getIntegrationState(target);
+      if (integrationState && typeof integrationState.muted === "boolean") {
+        return integrationState.muted;
+      }
     }
 
     return false;

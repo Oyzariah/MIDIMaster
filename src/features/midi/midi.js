@@ -499,11 +499,29 @@ export function createMidiFeature({
       return;
     }
     d.learnPanel.classList.add("hidden");
+    if (d.learnPanelTitle) {
+      d.learnPanelTitle.textContent = "Waiting for MIDI Input";
+    }
+    if (d.learnPanelSpinner) {
+      d.learnPanelSpinner.classList.remove("hidden");
+    }
+    if (d.learnPanelActions) {
+      d.learnPanelActions.classList.add("hidden");
+    }
   }
 
   function openLearnPanel(message) {
     if (!d.learnPanel) {
       return;
+    }
+    if (d.learnPanelTitle) {
+      d.learnPanelTitle.textContent = "Waiting for MIDI Input";
+    }
+    if (d.learnPanelSpinner) {
+      d.learnPanelSpinner.classList.remove("hidden");
+    }
+    if (d.learnPanelActions) {
+      d.learnPanelActions.classList.add("hidden");
     }
     if (d.learnPanelMessage && message) {
       d.learnPanelMessage.textContent = message;
@@ -674,7 +692,6 @@ export function createMidiFeature({
         }
         clearInterval(learnTimer);
         learnTimer = null;
-        closeLearnPanel();
         if (typeof addBindingFromLearn === "function") {
           await addBindingFromLearn(learned);
         }

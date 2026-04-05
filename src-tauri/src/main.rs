@@ -43,6 +43,17 @@ use tauri::{
 };
 use tokio::time::sleep;
 
+#[cfg(target_os = "windows")]
+use windows::core::PWSTR;
+#[cfg(target_os = "windows")]
+use windows::Win32::Foundation::CloseHandle;
+#[cfg(target_os = "windows")]
+use windows::Win32::System::Threading::{
+    OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+};
+#[cfg(target_os = "windows")]
+use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+
 pub(crate) use monitors::collect_monitor_descriptors;
 use plugin_api::{
     ensure_builtin_plugin, get_plugins_dir, hue_api_get, hue_api_put, hue_discover_bridges,
@@ -176,6 +187,13 @@ impl AppState {
         }
     }
 
+    fn binding_matches_aux(mapping: &model::AuxiliaryControl, event: &MidiEvent) -> bool {
+        mapping.device_id == event.device_id
+            && mapping.channel == event.channel
+            && mapping.controller == event.controller
+            && mapping.msg_type == event.msg_type
+    }
+
     fn apply_midi_event(&self, app: &AppHandle, event: MidiEvent) -> Result<(), String> {
         let mut learn_pending = self.learn_pending.lock().map_err(|_| "Lock poisoned")?;
         if *learn_pending {
@@ -277,6 +295,334 @@ impl AppState {
         let binding = match find_binding(&profile, &key) {
             Some(binding) => binding.clone(),
             None => {
+                let aux_match = profile.bindings.iter().find_map(|candidate| {
+                    if let Some(mapping) = candidate.mute_control.as_ref() {
+                        if Self::binding_matches_aux(mapping, &event) {
+                            return Some((candidate.clone(), "mute", mapping.clone()));
+                        }
+                    }
+                    if let Some(mapping) = candidate.assign_control.as_ref() {
+                        if Self::binding_matches_aux(mapping, &event) {
+                            return Some((candidate.clone(), "assign", mapping.clone()));
+                        }
+                    }
+                    None
+                });
+
+                if let Some((owner, role, aux_mapping)) = aux_match {
+                    let mut targets = owner.normalized_targets();
+                    targets.retain(|t| *t != model::BindingTarget::Unset);
+                    if targets.is_empty() {
+                        return Ok(());
+                    }
+
+                    let resolve_target_muted = |target: &model::BindingTarget| -> Option<bool> {
+                        match target {
+                            model::BindingTarget::Master => self
+                                .audio
+                                .list_sessions()
+                                .ok()
+                                .and_then(|sessions| sessions.iter().find(|s| s.is_master).cloned())
+                                .map(|s| s.is_muted)
+                                .or(Some(false)),
+                            model::BindingTarget::Focus => self
+                                .audio
+                                .focused_session()
+                                .ok()
+                                .flatten()
+                                .map(|s| s.is_muted)
+                                .or(Some(false)),
+                            model::BindingTarget::Session { session_id } => self
+                                .audio
+                                .list_sessions()
+                                .ok()
+                                .and_then(|sessions| {
+                                    sessions.into_iter().find(|s| s.id == *session_id)
+                                })
+                                .map(|s| s.is_muted)
+                                .or(Some(false)),
+                            model::BindingTarget::Application { name } => self
+                                .audio
+                                .list_sessions()
+                                .ok()
+                                .and_then(|sessions| {
+                                    sessions.into_iter().find(|s| {
+                                        let base = s.process_name.as_deref().unwrap_or_default();
+                                        let stem = base.strip_suffix(".exe").unwrap_or(base);
+                                        stem.eq_ignore_ascii_case(name)
+                                            || s.display_name.eq_ignore_ascii_case(name)
+                                    })
+                                })
+                                .map(|s| s.is_muted)
+                                .or(Some(false)),
+                            model::BindingTarget::Device { device_id } => {
+                                let (kind, raw_id) = parse_device_target(device_id);
+                                match kind {
+                                    DeviceTargetKind::Playback => self
+                                        .audio
+                                        .list_playback_devices()
+                                        .ok()
+                                        .and_then(|devices| {
+                                            devices.into_iter().find(|d| d.id == raw_id)
+                                        })
+                                        .map(|d| d.is_muted)
+                                        .or(Some(false)),
+                                    DeviceTargetKind::Recording => self
+                                        .audio
+                                        .list_recording_devices()
+                                        .ok()
+                                        .and_then(|devices| {
+                                            devices.into_iter().find(|d| d.id == raw_id)
+                                        })
+                                        .map(|d| d.is_muted)
+                                        .or(Some(false)),
+                                }
+                            }
+                            model::BindingTarget::Integration { .. } => None,
+                            _ => Some(false),
+                        }
+                    };
+
+                    if event.value == 0 {
+                        if role == "mute" {
+                            let fallback_muted = self
+                                .feedback_values
+                                .lock()
+                                .ok()
+                                .and_then(|feedback| feedback.get(&key).cloned())
+                                .map(|v| v > 0.5)
+                                .unwrap_or(false);
+                            let muted_now = targets
+                                .first()
+                                .and_then(&resolve_target_muted)
+                                .unwrap_or(fallback_muted);
+                            let midi_arc = self.midi.clone();
+                            let device_id = aux_mapping.device_id.clone();
+                            let channel = aux_mapping.channel;
+                            let controller = aux_mapping.controller;
+                            let msg_type = aux_mapping.msg_type.clone();
+                            tauri::async_runtime::spawn(async move {
+                                tokio::time::sleep(Duration::from_millis(20)).await;
+                                if let Ok(mut midi) = midi_arc.lock() {
+                                    let _ = midi.send_feedback(
+                                        &device_id,
+                                        channel,
+                                        controller,
+                                        if muted_now { 1.0 } else { 0.0 },
+                                        msg_type,
+                                    );
+                                }
+                            });
+                        }
+                        return Ok(());
+                    }
+
+                    if role == "assign" {
+                        let focused = self
+                            .audio
+                            .focused_session()
+                            .map_err(|err| err.to_string())?;
+                        let app_name = if let Some(focused) = focused {
+                            focused
+                                .process_name
+                                .as_deref()
+                                .and_then(|name| name.strip_suffix(".exe").or(Some(name)))
+                                .map(|name| name.trim().to_string())
+                                .filter(|name| !name.is_empty())
+                                .unwrap_or_else(|| focused.display_name.clone())
+                        } else {
+                            focused_application_name().unwrap_or_default()
+                        };
+                        if !app_name.is_empty() {
+                            let new_target = model::BindingTarget::Application { name: app_name };
+                            if !targets.iter().any(|t| *t == new_target) {
+                                if targets.len() >= 8 {
+                                    let _ = app.emit(
+                                        "binding_aux_error",
+                                        serde_json::json!({
+                                            "binding_id": owner.id,
+                                            "kind": "assign",
+                                            "reason": "target_list_full"
+                                        }),
+                                    );
+                                } else {
+                                    let mut guard = self
+                                        .active_profile
+                                        .lock()
+                                        .map_err(|_| "Lock poisoned".to_string())?;
+                                    if let Some(active_profile) = guard.as_mut() {
+                                        if let Some(stored) = active_profile
+                                            .bindings
+                                            .iter_mut()
+                                            .find(|b| b.id == owner.id)
+                                        {
+                                            stored.ensure_targets();
+                                            if !stored.targets.iter().any(|t| *t == new_target) {
+                                                stored.targets.push(new_target.clone());
+                                                stored.ensure_targets();
+                                            }
+                                        }
+                                        self.profile_store
+                                            .save_profile(active_profile.clone())
+                                            .map_err(|err| err.to_string())?;
+                                        self.sync_feedback_values(active_profile);
+                                    }
+                                    let _ = app.emit(
+                                        "binding_aux_assign_update",
+                                        serde_json::json!({
+                                            "binding_id": owner.id,
+                                            "target": new_target
+                                        }),
+                                    );
+                                }
+                            }
+                        } else {
+                            let _ = app.emit(
+                                "binding_aux_error",
+                                serde_json::json!({
+                                    "binding_id": owner.id,
+                                    "kind": "assign",
+                                    "reason": "focused_app_unavailable"
+                                }),
+                            );
+                        }
+                        return Ok(());
+                    }
+
+                    let fallback_muted = self
+                        .feedback_values
+                        .lock()
+                        .ok()
+                        .and_then(|feedback| feedback.get(&key).cloned())
+                        .map(|v| v > 0.5)
+                        .unwrap_or(false);
+                    let current_muted = targets
+                        .first()
+                        .and_then(&resolve_target_muted)
+                        .unwrap_or(fallback_muted);
+                    let next_muted = !current_muted;
+                    for (target_index, target) in targets.iter().enumerate() {
+                        match target {
+                            model::BindingTarget::Master => {
+                                let _ = self.audio.set_master_mute(next_muted);
+                            }
+                            model::BindingTarget::Focus => {
+                                let _ = self.audio.set_focused_session_mute(next_muted);
+                            }
+                            model::BindingTarget::Session { session_id } => {
+                                let _ = self.audio.set_session_mute(session_id, next_muted);
+                            }
+                            model::BindingTarget::Application { name } => {
+                                let _ = self.audio.set_application_mute(name, next_muted);
+                            }
+                            model::BindingTarget::Device { device_id } => {
+                                let _ = self.audio.set_device_mute(device_id, next_muted);
+                            }
+                            model::BindingTarget::Integration {
+                                integration_id,
+                                kind,
+                                data,
+                            } => {
+                                let payload = serde_json::json!({
+                                  "binding_id": owner.id,
+                                  "action": "ToggleMute",
+                                  "value": if next_muted { 1.0 } else { 0.0 },
+                                  "target_index": target_index,
+                                  "target_count": targets.len(),
+                                  "is_primary_target": target_index == 0,
+                                  "target": {
+                                    "integration_id": integration_id,
+                                    "kind": kind,
+                                    "data": data,
+                                  }
+                                });
+                                let _ = app.emit("integration_binding_triggered", payload);
+                            }
+                            _ => {}
+                        }
+                    }
+                    if let Ok(mut feedback) = self.feedback_values.lock() {
+                        feedback.insert(key.clone(), if next_muted { 1.0 } else { 0.0 });
+                    }
+                    if let Ok(mut midi) = self.midi.lock() {
+                        let _ = midi.send_feedback(
+                            &aux_mapping.device_id,
+                            aux_mapping.channel,
+                            aux_mapping.controller,
+                            if next_muted { 1.0 } else { 0.0 },
+                            aux_mapping.msg_type.clone(),
+                        );
+                    }
+
+                    if let Ok(mut last_update) = self.osd_last_update.lock() {
+                        *last_update = Some(Instant::now());
+                    }
+
+                    let _ = app.emit(
+                        "binding_aux_mute_update",
+                        serde_json::json!({
+                            "binding_id": owner.id,
+                            "muted": next_muted
+                        }),
+                    );
+
+                    let settings_enabled = self
+                        .osd_settings
+                        .lock()
+                        .map(|settings| settings.enabled)
+                        .unwrap_or(true);
+
+                    for target in &targets {
+                        let focus_session = if matches!(target, model::BindingTarget::Focus) {
+                            self.audio.focused_session().ok().flatten()
+                        } else {
+                            None
+                        };
+                        let payload = serde_json::json!({
+                          "target": target,
+                          "muted": next_muted,
+                          "action": "toggle_mute",
+                          "focus_session": focus_session,
+                          "binding_id": owner.id
+                        });
+                        let _ = app.emit("mute_update", payload.clone());
+
+                        if settings_enabled {
+                            if let Some(osd_window) = app.get_webview_window("osd") {
+                                let _ = osd_window.show();
+                                let _ = osd_window.set_always_on_top(true);
+                                #[cfg(target_os = "windows")]
+                                if let Ok(hwnd) = osd_window.hwnd() {
+                                    use windows::Win32::Foundation::HWND;
+                                    use windows::Win32::UI::WindowsAndMessaging::{
+                                        SetWindowPos, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
+                                    };
+                                    unsafe {
+                                        let _ = SetWindowPos(
+                                            HWND(hwnd.0 as _),
+                                            Some(HWND_TOPMOST),
+                                            0,
+                                            0,
+                                            0,
+                                            0,
+                                            SWP_NOMOVE | SWP_NOSIZE,
+                                        );
+                                    }
+                                }
+                                let _ = osd_window.emit("mute_update", payload.clone());
+                                if let Ok(payload_json) = serde_json::to_string(&payload) {
+                                    let script = format!(
+                                        "window.__OSD_UPDATE__ && window.__OSD_UPDATE__({});",
+                                        payload_json
+                                    );
+                                    let _ = osd_window.eval(&script);
+                                }
+                            }
+                        }
+                    }
+                    return Ok(());
+                }
+
                 run_logger::debug(
                     "bindings",
                     "event_unmatched",
@@ -959,6 +1305,53 @@ impl AppState {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn focused_application_name() -> Option<String> {
+    let hwnd = unsafe { GetForegroundWindow() };
+    if hwnd.0.is_null() {
+        return None;
+    }
+
+    let mut process_id = 0u32;
+    unsafe {
+        let _ = GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+    }
+    if process_id == 0 {
+        return None;
+    }
+
+    let process_handle =
+        unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id).ok()? };
+
+    let mut buffer = vec![0u16; 1024];
+    let mut length = buffer.len() as u32;
+    let ok = unsafe {
+        QueryFullProcessImageNameW(
+            process_handle,
+            PROCESS_NAME_WIN32,
+            PWSTR(buffer.as_mut_ptr()),
+            &mut length,
+        )
+        .is_ok()
+    };
+    let _ = unsafe { CloseHandle(process_handle) };
+    if !ok || length == 0 {
+        return None;
+    }
+
+    let path = String::from_utf16_lossy(&buffer[..length as usize]);
+    Path::new(&path)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn focused_application_name() -> Option<String> {
+    None
+}
+
 fn shutdown_lights(state: &AppState) {
     run_logger::info("app", "shutdown_lights_start", "");
     if let Ok(profile_guard) = state.active_profile.lock() {
@@ -1391,6 +1784,7 @@ fn main() {
             remove_binding,
             update_midi_feedback,
             set_binding_feedback,
+            apply_binding_action,
             get_plugins_dir,
             list_plugins,
             read_plugin_text,
