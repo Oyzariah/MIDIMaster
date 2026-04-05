@@ -275,6 +275,7 @@ export function createBindingsFeature({
     const lockClear = transferLocked || Boolean(configLearnField);
     if (muteClear) muteClear.disabled = lockClear;
     if (assignClear) assignClear.disabled = lockClear;
+    if (d.bindingConfigAssignModeButton) d.bindingConfigAssignModeButton.disabled = lockClear;
   }
 
   function stopAuxLearn(options = {}) {
@@ -296,6 +297,24 @@ export function createBindingsFeature({
       ? "PB"
       : (control.msg_type === "Note" ? "Note" : "CC");
     return `Ch ${control.channel} ${msg} ${control.controller}`;
+  }
+
+  function renderAssignMappingLabel(binding) {
+    if (!d.bindingConfigAssignLabel) return;
+    const mode = binding?.assign_mode === "Replace" ? "Replace" : "Add";
+    const mappingText = formatMidiControlLabel(binding?.assign_control);
+    d.bindingConfigAssignLabel.innerHTML = "";
+
+    const main = document.createElement("span");
+    main.className = "binding-config-label-main";
+    main.textContent = mappingText;
+
+    const badge = document.createElement("span");
+    badge.className = "binding-config-inline-badge";
+    badge.textContent = mode;
+
+    d.bindingConfigAssignLabel.appendChild(main);
+    d.bindingConfigAssignLabel.appendChild(badge);
   }
 
   function normalizeAuxControl(learned) {
@@ -323,6 +342,7 @@ export function createBindingsFeature({
   function closeConfigModal() {
     stopAuxLearn();
     clearTransferPrompt();
+    closeAssignModeMenu();
     configBindingId = null;
     if (d.bindingConfigPanel) d.bindingConfigPanel.classList.add("hidden");
   }
@@ -335,6 +355,7 @@ export function createBindingsFeature({
     if (!binding) return;
     if (!("mute_control" in binding)) binding.mute_control = null;
     if (!("assign_control" in binding)) binding.assign_control = null;
+    if (binding.assign_mode !== "Replace") binding.assign_mode = "Add";
   }
 
   function renderConfigModal() {
@@ -343,11 +364,37 @@ export function createBindingsFeature({
       closeConfigModal();
       return;
     }
+    closeAssignModeMenu();
     ensureAuxShape(binding);
     if (d.bindingConfigName) d.bindingConfigName.value = binding.name?.trim() || "";
     if (d.bindingConfigMuteLabel) d.bindingConfigMuteLabel.textContent = formatMidiControlLabel(binding.mute_control);
-    if (d.bindingConfigAssignLabel) d.bindingConfigAssignLabel.textContent = formatMidiControlLabel(binding.assign_control);
+    renderAssignMappingLabel(binding);
+    syncAssignModeUi(binding.assign_mode || "Add");
     updateAuxLearnUi();
+  }
+
+  function closeAssignModeMenu() {
+    if (d.bindingConfigAssignModeMenu) d.bindingConfigAssignModeMenu.classList.add("hidden");
+    if (d.bindingConfigAssignModeButton) d.bindingConfigAssignModeButton.setAttribute("aria-expanded", "false");
+  }
+
+  function openAssignModeMenu() {
+    if (d.bindingConfigAssignModeMenu) d.bindingConfigAssignModeMenu.classList.remove("hidden");
+    if (d.bindingConfigAssignModeButton) d.bindingConfigAssignModeButton.setAttribute("aria-expanded", "true");
+  }
+
+  function syncAssignModeUi(mode) {
+    const currentMode = mode === "Replace" ? "Replace" : "Add";
+    if (d.bindingConfigAssignModeButton) {
+      d.bindingConfigAssignModeButton.title = `Assign mode: ${currentMode}`;
+      d.bindingConfigAssignModeButton.setAttribute("aria-label", `Assign mode: ${currentMode}`);
+    }
+    if (d.bindingConfigAssignModeAdd) {
+      d.bindingConfigAssignModeAdd.classList.toggle("is-selected", currentMode === "Add");
+    }
+    if (d.bindingConfigAssignModeReplace) {
+      d.bindingConfigAssignModeReplace.classList.toggle("is-selected", currentMode === "Replace");
+    }
   }
 
   async function persistBinding(binding) {
@@ -1153,6 +1200,38 @@ export function createBindingsFeature({
         renderConfigModal();
       });
     }
+    if (d.bindingConfigAssignModeButton) {
+      d.bindingConfigAssignModeButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const menu = d.bindingConfigAssignModeMenu;
+        if (!menu) return;
+        if (menu.classList.contains("hidden")) {
+          openAssignModeMenu();
+        } else {
+          closeAssignModeMenu();
+        }
+      });
+    }
+    const onAssignModeOptionClick = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const button = event.currentTarget;
+      const mode = button?.dataset?.mode === "Replace" ? "Replace" : "Add";
+      const binding = getBindingById(configBindingId);
+      if (!binding) return;
+      binding.assign_mode = mode;
+      await persistBinding(binding);
+      renderAssignMappingLabel(binding);
+      syncAssignModeUi(binding.assign_mode);
+      closeAssignModeMenu();
+    };
+    if (d.bindingConfigAssignModeAdd) {
+      d.bindingConfigAssignModeAdd.addEventListener("click", onAssignModeOptionClick);
+    }
+    if (d.bindingConfigAssignModeReplace) {
+      d.bindingConfigAssignModeReplace.addEventListener("click", onAssignModeOptionClick);
+    }
 
     if (d.learnPanel) {
       d.learnPanel.addEventListener("click", (event) => {
@@ -1179,6 +1258,13 @@ export function createBindingsFeature({
         await commitTransferPrompt();
       });
     }
+
+    document.addEventListener("click", (event) => {
+      if (!configBindingId) return;
+      const root = d.bindingConfigAssignModeRoot;
+      if (!root || root.contains(event.target)) return;
+      closeAssignModeMenu();
+    });
   }
 
   document.addEventListener("pointerdown", (event) => {

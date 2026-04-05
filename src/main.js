@@ -210,6 +210,7 @@ function normalizeBinding(binding) {
   if (!binding || typeof binding !== "object") return binding;
   const out = { ...binding };
   setBindingTargets(out, getBindingTargets(out));
+  if (out.assign_mode !== "Replace") out.assign_mode = "Add";
   return out;
 }
 
@@ -288,6 +289,11 @@ const bindingConfigMuteClear = document.getElementById("binding-config-mute-clea
 const bindingConfigAssignLabel = document.getElementById("binding-config-assign-label");
 const bindingConfigAssignLearn = document.getElementById("binding-config-assign-learn");
 const bindingConfigAssignClear = document.getElementById("binding-config-assign-clear");
+const bindingConfigAssignModeRoot = document.getElementById("binding-config-assign-mode-root");
+const bindingConfigAssignModeButton = document.getElementById("binding-config-assign-mode-button");
+const bindingConfigAssignModeMenu = document.getElementById("binding-config-assign-mode-menu");
+const bindingConfigAssignModeAdd = document.getElementById("binding-config-assign-mode-add");
+const bindingConfigAssignModeReplace = document.getElementById("binding-config-assign-mode-replace");
 
 // Defensive cleanup for older builds that injected extra back buttons.
 try {
@@ -923,6 +929,11 @@ bindingsFeature = createBindingsFeature({
     bindingConfigAssignLabel,
     bindingConfigAssignLearn,
     bindingConfigAssignClear,
+    bindingConfigAssignModeRoot,
+    bindingConfigAssignModeButton,
+    bindingConfigAssignModeMenu,
+    bindingConfigAssignModeAdd,
+    bindingConfigAssignModeReplace,
     learnPanel,
     learnPanelTitle,
     learnPanelMessage,
@@ -1436,6 +1447,7 @@ function createBindingFromLearn(payload) {
     debounce_ms: 0,
     mute_control: null,
     assign_control: null,
+    assign_mode: "Add",
   };
 }
 
@@ -1537,16 +1549,20 @@ async function setupListeners() {
         payload = null;
       }
     }
-    if (payload?.binding_id && payload?.target) {
+    if (payload?.binding_id) {
       const binding = bindings.find((b) => b && b.id === payload.binding_id);
       if (binding) {
-        const nextTargets = getBindingTargets(binding);
-        const exists = nextTargets.some((target) => (
-          JSON.stringify(target) === JSON.stringify(payload.target)
-        ));
-        if (!exists) {
-          nextTargets.push(payload.target);
-          setBindingTargets(binding, nextTargets);
+        if (Array.isArray(payload.targets)) {
+          setBindingTargets(binding, payload.targets);
+        } else if (payload.target) {
+          const nextTargets = getBindingTargets(binding);
+          const exists = nextTargets.some((target) => (
+            JSON.stringify(target) === JSON.stringify(payload.target)
+          ));
+          if (!exists) {
+            nextTargets.push(payload.target);
+            setBindingTargets(binding, nextTargets);
+          }
         }
       }
     }

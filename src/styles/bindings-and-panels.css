@@ -882,14 +882,14 @@ body.dark-mode .osd-position-dot.selected {
 .binding-config-content {
   width: min(760px, 92vw);
   border-radius: 12px;
-  max-height: 70vh;
+  max-height: none;
 }
 
 .binding-config-body {
   display: grid;
   gap: 16px;
   padding: 18px 16px 24px;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .binding-config-row {
@@ -908,6 +908,12 @@ body.dark-mode .osd-position-dot.selected {
   color: #4a5166;
   font-weight: 600;
   font-size: 15px;
+}
+
+.binding-config-title-with-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .binding-config-row input[type="text"] {
@@ -939,6 +945,73 @@ body.dark-mode .osd-position-dot.selected {
   background: #eef2fb;
 }
 
+.binding-config-mode-root {
+  position: relative;
+  display: inline-flex;
+}
+
+.binding-config-mode-trigger {
+  min-width: 28px !important;
+  width: 28px;
+  height: 28px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  line-height: 1;
+  border: 1px solid #ccd1e0;
+  border-radius: 8px;
+  background: #fff;
+  color: #4a5166;
+  cursor: pointer;
+  font-family: "Segoe UI Symbol", "Segoe UI", sans-serif;
+}
+
+.binding-config-mode-trigger:hover {
+  background: #eef2fb;
+}
+
+.binding-config-mode-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  min-width: 130px;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 10px;
+  background: #f7f9fe;
+  border: 1px solid #d5dbea;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+}
+
+.binding-config-mode-menu.hidden {
+  display: none;
+}
+
+.binding-config-mode-option {
+  width: 100%;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #d0d8ea;
+  background: #fff;
+  color: #2b2d42;
+  text-align: left;
+  padding: 0 10px;
+  font-weight: 600;
+}
+
+.binding-config-mode-option:hover {
+  background: #eef2fb;
+}
+
+.binding-config-mode-option.is-selected {
+  border-color: #4d72b8;
+  background: #e9f0ff;
+}
+
 .binding-config-label {
   min-width: 0;
   flex: 1;
@@ -946,11 +1019,32 @@ body.dark-mode .osd-position-dot.selected {
   border: 1px solid #d5dbea;
   border-radius: 10px;
   background: #f7f9fe;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  font-weight: 600;
+  color: #37405f;
+}
+
+.binding-config-label-main {
+  min-width: 0;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
-  color: #37405f;
+}
+
+.binding-config-inline-badge {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #c8d5f0;
+  background: #edf3ff;
+  color: #3d5e95;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 @media (max-width: 720px) {
@@ -1218,6 +1312,12 @@ body.dark-mode .binding-config-label {
   border-color: #46679e;
 }
 
+body.dark-mode .binding-config-inline-badge {
+  border-color: #5d7fb6;
+  background: #2a426d;
+  color: #dbe8ff;
+}
+
 body.dark-mode .binding-config-actions button {
   background: #263453;
   color: #e9f0ff;
@@ -1236,6 +1336,37 @@ body.dark-mode .binding-config-actions .secondary {
 
 body.dark-mode .binding-config-actions .secondary:hover {
   background: #324266;
+}
+
+body.dark-mode .binding-config-mode-menu {
+  background: #1f2f4f;
+  border-color: #46679e;
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.45);
+}
+
+body.dark-mode .binding-config-mode-trigger {
+  background: #273451;
+  color: #d8e4ff;
+  border-color: #425f94;
+}
+
+body.dark-mode .binding-config-mode-trigger:hover {
+  background: #324266;
+}
+
+body.dark-mode .binding-config-mode-option {
+  background: #1f2c49;
+  color: #e8f0ff;
+  border-color: #436196;
+}
+
+body.dark-mode .binding-config-mode-option:hover {
+  background: #2a3f67;
+}
+
+body.dark-mode .binding-config-mode-option.is-selected {
+  background: #29426f;
+  border-color: #6b8ecf;
 }
 
 body.dark-mode .learn-panel-actions button {

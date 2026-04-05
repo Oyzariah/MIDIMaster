@@ -122,7 +122,7 @@
             <input id="binding-config-name" type="text" placeholder="Binding name" name="binding-config-name" autocomplete="new-password" autocorrect="off" autocapitalize="off" spellcheck="false" data-lpignore="true" />
           </label>
           <div class="binding-config-row">
-            <span class="binding-config-title">Mute mapping</span>
+            <span class="binding-config-title">Mute</span>
             <div class="binding-config-actions">
               <span id="binding-config-mute-label" class="binding-config-label">Not mapped</span>
               <button id="binding-config-mute-learn" type="button">Learn</button>
@@ -130,7 +130,24 @@
             </div>
           </div>
           <div class="binding-config-row">
-            <span class="binding-config-title">Assign mapping</span>
+            <span class="binding-config-title binding-config-title-with-action">
+              <span>Assign</span>
+              <div id="binding-config-assign-mode-root" class="binding-config-mode-root">
+                <button
+                  id="binding-config-assign-mode-button"
+                  type="button"
+                  class="binding-config-mode-trigger"
+                  title="Assign mode: Add"
+                  aria-label="Assign mode"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                >&#9881;</button>
+                <div id="binding-config-assign-mode-menu" class="binding-config-mode-menu hidden" role="menu" aria-label="Assign mode options">
+                  <button id="binding-config-assign-mode-add" type="button" class="binding-config-mode-option" data-mode="Add" role="menuitem">Add</button>
+                  <button id="binding-config-assign-mode-replace" type="button" class="binding-config-mode-option" data-mode="Replace" role="menuitem">Replace</button>
+                </div>
+              </div>
+            </span>
             <div class="binding-config-actions">
               <span id="binding-config-assign-label" class="binding-config-label">Not mapped</span>
               <button id="binding-config-assign-learn" type="button">Learn</button>

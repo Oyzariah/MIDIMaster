@@ -108,6 +108,18 @@ impl Default for BindingAction {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AssignMode {
+    Add,
+    Replace,
+}
+
+impl Default for AssignMode {
+    fn default() -> Self {
+        AssignMode::Add
+    }
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub enum BindingTarget {
     Master,
@@ -372,6 +384,8 @@ pub struct Binding {
     pub mute_control: Option<AuxiliaryControl>,
     #[serde(default)]
     pub assign_control: Option<AuxiliaryControl>,
+    #[serde(default)]
+    pub assign_mode: AssignMode,
 }
 
 impl Binding {
@@ -563,6 +577,7 @@ mod tests {
             debounce_ms: 0,
             mute_control: None,
             assign_control: None,
+            assign_mode: AssignMode::Add,
         };
 
         let json = serde_json::to_value(binding).expect("binding should serialize");

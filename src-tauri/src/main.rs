@@ -312,7 +312,7 @@ impl AppState {
                 if let Some((owner, role, aux_mapping)) = aux_match {
                     let mut targets = owner.normalized_targets();
                     targets.retain(|t| *t != model::BindingTarget::Unset);
-                    if targets.is_empty() {
+                    if role == "mute" && targets.is_empty() {
                         return Ok(());
                     }
 
@@ -435,8 +435,11 @@ impl AppState {
                         };
                         if !app_name.is_empty() {
                             let new_target = model::BindingTarget::Application { name: app_name };
-                            if !targets.iter().any(|t| *t == new_target) {
-                                if targets.len() >= 8 {
+                            let already_present = targets.iter().any(|t| *t == new_target);
+                            let should_replace =
+                                matches!(owner.assign_mode, model::AssignMode::Replace);
+                            if should_replace || !already_present {
+                                if !should_replace && targets.len() >= 8 {
                                     let _ = app.emit(
                                         "binding_aux_error",
                                         serde_json::json!({
@@ -446,6 +449,8 @@ impl AppState {
                                         }),
                                     );
                                 } else {
+                                    let mut updated_targets: Option<Vec<model::BindingTarget>> =
+                                        None;
                                     let mut guard = self
                                         .active_profile
                                         .lock()
@@ -457,23 +462,37 @@ impl AppState {
                                             .find(|b| b.id == owner.id)
                                         {
                                             stored.ensure_targets();
-                                            if !stored.targets.iter().any(|t| *t == new_target) {
+                                            if should_replace {
+                                                stored.targets = vec![new_target.clone()];
+                                                stored.ensure_targets();
+                                                updated_targets = Some(stored.normalized_targets());
+                                            } else if !stored
+                                                .targets
+                                                .iter()
+                                                .any(|t| *t == new_target)
+                                            {
                                                 stored.targets.push(new_target.clone());
                                                 stored.ensure_targets();
+                                                updated_targets = Some(stored.normalized_targets());
                                             }
                                         }
-                                        self.profile_store
-                                            .save_profile(active_profile.clone())
-                                            .map_err(|err| err.to_string())?;
-                                        self.sync_feedback_values(active_profile);
+                                        if updated_targets.is_some() {
+                                            self.profile_store
+                                                .save_profile(active_profile.clone())
+                                                .map_err(|err| err.to_string())?;
+                                            self.sync_feedback_values(active_profile);
+                                        }
                                     }
-                                    let _ = app.emit(
-                                        "binding_aux_assign_update",
-                                        serde_json::json!({
-                                            "binding_id": owner.id,
-                                            "target": new_target
-                                        }),
-                                    );
+                                    if let Some(updated_targets) = updated_targets {
+                                        let _ = app.emit(
+                                            "binding_aux_assign_update",
+                                            serde_json::json!({
+                                                "binding_id": owner.id,
+                                                "target": new_target,
+                                                "targets": updated_targets
+                                            }),
+                                        );
+                                    }
                                 }
                             }
                         } else {
