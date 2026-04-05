@@ -61,4 +61,3 @@ jobs:
             src-tauri/target/release/midimaster.exe
             src-tauri/target/release/bundle/**/*.exe
             src-tauri/target/release/bundle/**/*.msi
-            src-tauri/target/release/bundle/**/*.zip
