@@ -51,7 +51,12 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.ref_name }}
+          name: MIDIMaster ${{ github.ref_name }}
+          draft: false
+          prerelease: false
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             src-tauri/target/release/midimaster.exe
             src-tauri/target/release/bundle/**/*.exe

@@ -83,7 +83,7 @@ cargo tauri dev
 
 Releases are created from git tags.
 
-1. Update `src-tauri/tauri.conf.json` version.
+1. Update `src-tauri/Cargo.toml` version.
 2. Create and push a tag in the form `v<version>` (example: `v0.1.0`).
 
 Pushing the tag triggers the GitHub Actions release workflow, which builds the Windows bundle and
