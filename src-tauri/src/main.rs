@@ -324,6 +324,30 @@ impl AppState {
             && mapping.msg_type == event.msg_type
     }
 
+    fn resolve_target_mute_state(
+        event_value: u8,
+        current_muted: bool,
+        behavior: model::MuteBehavior,
+    ) -> Option<bool> {
+        match behavior {
+            model::MuteBehavior::ToggleOnPress => {
+                if event_value == 0 {
+                    None
+                } else {
+                    Some(!current_muted)
+                }
+            }
+            model::MuteBehavior::SetFromValue => {
+                let next_muted = event_value > 0;
+                if next_muted == current_muted {
+                    None
+                } else {
+                    Some(next_muted)
+                }
+            }
+        }
+    }
+
     fn apply_midi_event(&self, app: &AppHandle, event: MidiEvent) -> Result<(), String> {
         let mut learn_pending = self.learn_pending.lock().map_err(|_| "Lock poisoned")?;
         if *learn_pending {
@@ -513,7 +537,10 @@ impl AppState {
                         }
                     };
 
-                    if event.value == 0 {
+                    if event.value == 0
+                        && (role != "mute"
+                            || aux_mapping.mute_behavior == model::MuteBehavior::ToggleOnPress)
+                    {
                         if role == "mute" {
                             let fallback_muted = self
                                 .feedback_values
@@ -649,7 +676,13 @@ impl AppState {
                         .first()
                         .and_then(&resolve_target_muted)
                         .unwrap_or(fallback_muted);
-                    let next_muted = !current_muted;
+                    let Some(next_muted) = Self::resolve_target_mute_state(
+                        event.value,
+                        current_muted,
+                        aux_mapping.mute_behavior.clone(),
+                    ) else {
+                        return Ok(());
+                    };
                     for (target_index, target) in targets.iter().enumerate() {
                         match target {
                             model::BindingTarget::Master => {
@@ -990,7 +1023,7 @@ impl AppState {
 
             // On button release (value == 0), re-send current state to enforce latching check
             // This fixes controllers that turn off LED on release (momentary behavior)
-            if event.value == 0 {
+            if event.value == 0 && binding.mute_behavior == model::MuteBehavior::ToggleOnPress {
                 run_logger::debug(
                     "bindings",
                     "toggle_mute_release_resend",
@@ -1032,7 +1065,14 @@ impl AppState {
                 .ok()
                 .and_then(|fb| fb.get(&key).cloned())
                 .unwrap_or(0.0);
-            let muted = !(current_val > 0.5);
+            let current_muted = current_val > 0.5;
+            let Some(muted) = Self::resolve_target_mute_state(
+                event.value,
+                current_muted,
+                binding.mute_behavior.clone(),
+            ) else {
+                return Ok(());
+            };
             let mut any_applied = false;
 
             for (target_index, target) in targets.iter().enumerate() {
@@ -1647,6 +1687,38 @@ mod tests {
         let candidate = candidate_with_values(model::MidiMessageType::ControlChange, false, true);
         let learned = classify_learned_control(&candidate);
         assert_eq!(learned.control_kind, model::BindingControlKind::Continuous);
+    }
+
+    #[test]
+    fn set_from_value_mutes_on_nonzero_and_unmutes_on_zero() {
+        assert_eq!(
+            AppState::resolve_target_mute_state(0, false, model::MuteBehavior::SetFromValue),
+            None
+        );
+        assert_eq!(
+            AppState::resolve_target_mute_state(127, false, model::MuteBehavior::SetFromValue),
+            Some(true)
+        );
+        assert_eq!(
+            AppState::resolve_target_mute_state(0, true, model::MuteBehavior::SetFromValue),
+            Some(false)
+        );
+    }
+
+    #[test]
+    fn toggle_on_press_ignores_zero_and_toggles_on_press() {
+        assert_eq!(
+            AppState::resolve_target_mute_state(0, false, model::MuteBehavior::ToggleOnPress),
+            None
+        );
+        assert_eq!(
+            AppState::resolve_target_mute_state(127, false, model::MuteBehavior::ToggleOnPress),
+            Some(true)
+        );
+        assert_eq!(
+            AppState::resolve_target_mute_state(127, true, model::MuteBehavior::ToggleOnPress),
+            Some(false)
+        );
     }
 }
 

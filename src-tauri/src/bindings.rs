@@ -276,6 +276,7 @@ mod tests {
             custom_curve: Vec::new(),
             deadzone: 0.0,
             debounce_ms: 0,
+            mute_behavior: crate::model::MuteBehavior::ToggleOnPress,
             mute_control: None,
             assign_control: None,
             assign_mode: crate::model::AssignMode::Add,

@@ -222,6 +222,13 @@ function normalizeBinding(binding) {
   if (out.custom_curve.length < 2) {
     out.custom_curve = presetCurvePoints(out.fader_curve);
   }
+  out.mute_behavior = out.mute_behavior === "SetFromValue" ? "SetFromValue" : "ToggleOnPress";
+  if (out.mute_control && typeof out.mute_control === "object") {
+    out.mute_control = {
+      ...out.mute_control,
+      mute_behavior: out.mute_control.mute_behavior === "SetFromValue" ? "SetFromValue" : "ToggleOnPress",
+    };
+  }
   if (out.assign_mode !== "Replace") out.assign_mode = "Add";
   if (!out.hotkey || typeof out.hotkey !== "object") out.hotkey = null;
   if (!out.open_application || typeof out.open_application !== "object") {
@@ -322,6 +329,11 @@ const bindingConfigName = document.getElementById("binding-config-name");
 const bindingConfigMuteLabel = document.getElementById("binding-config-mute-label");
 const bindingConfigMuteLearn = document.getElementById("binding-config-mute-learn");
 const bindingConfigMuteClear = document.getElementById("binding-config-mute-clear");
+const bindingConfigMuteModeRoot = document.getElementById("binding-config-mute-mode-root");
+const bindingConfigMuteModeButton = document.getElementById("binding-config-mute-mode-button");
+const bindingConfigMuteModeMenu = document.getElementById("binding-config-mute-mode-menu");
+const bindingConfigMuteModeToggle = document.getElementById("binding-config-mute-mode-toggle");
+const bindingConfigMuteModeValue = document.getElementById("binding-config-mute-mode-value");
 const bindingConfigAssignLabel = document.getElementById("binding-config-assign-label");
 const bindingConfigAssignLearn = document.getElementById("binding-config-assign-learn");
 const bindingConfigAssignClear = document.getElementById("binding-config-assign-clear");
@@ -1222,6 +1234,11 @@ bindingsFeature = createBindingsFeature({
     bindingConfigMuteLabel,
     bindingConfigMuteLearn,
     bindingConfigMuteClear,
+    bindingConfigMuteModeRoot,
+    bindingConfigMuteModeButton,
+    bindingConfigMuteModeMenu,
+    bindingConfigMuteModeToggle,
+    bindingConfigMuteModeValue,
     bindingConfigAssignLabel,
     bindingConfigAssignLearn,
     bindingConfigAssignClear,
@@ -1992,6 +2009,7 @@ function createBindingFromLearn(payload) {
     custom_curve: normalizeCustomCurvePoints([]),
     deadzone: 0,
     debounce_ms: 0,
+    mute_behavior: "ToggleOnPress",
     mute_control: null,
     assign_control: null,
     assign_mode: "Add",

@@ -1461,7 +1461,7 @@ body.dark-mode:not([data-theme]) .osd-position-dot.selected {
 .binding-config-content {
   width: min(1160px, 96vw);
   border-radius: 16px;
-  max-height: calc(100vh - 12px);
+  max-height: calc(100vh - 20px);
   display: flex;
   flex-direction: column;
 }
@@ -1476,21 +1476,24 @@ body.dark-mode:not([data-theme]) .osd-position-dot.selected {
 
 .binding-config-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(290px, 0.85fr);
+  grid-template-columns: minmax(0, 1.35fr) minmax(270px, 0.85fr);
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .binding-config-main-column {
   display: grid;
   gap: 12px;
-  padding: 10px;
+  padding: 10px 10px 8px;
   border-right: 1px solid rgba(122, 141, 179, 0.16);
+  min-width: 0;
 }
 
 .binding-config-preview-column {
   display: flex;
-  padding: 10px;
+  padding: 10px 10px 8px 8px;
+  min-width: 0;
 }
 
 .binding-config-section,
@@ -1582,6 +1585,7 @@ body.dark-mode:not([data-theme]) .osd-position-dot.selected {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 8px;
+  align-items: center;
 }
 
 .binding-config-mode-root {
@@ -1670,6 +1674,7 @@ body.dark-mode:not([data-theme]) .osd-position-dot.selected {
   font-size: 11px;
   font-weight: 700;
   line-height: 1.4;
+  cursor: help;
 }
 
 .binding-config-info-pill {
@@ -2035,6 +2040,24 @@ body.dark-mode:not([data-theme]) .osd-position-dot.selected {
 
   .binding-config-curve-cards {
     gap: 8px;
+  }
+
+  .binding-config-content {
+    max-height: calc(100vh - 24px);
+  }
+
+  .binding-config-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(236px, 0.8fr);
+  }
+
+  .binding-config-main-column,
+  .binding-config-preview-column {
+    padding: 6px;
+  }
+
+  .binding-config-section,
+  .binding-config-preview-shell {
+    padding: 8px;
   }
 }
 

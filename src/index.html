@@ -341,7 +341,29 @@
             </section>
 
             <section class="binding-config-section">
-              <span class="binding-config-title">Mute</span>
+              <span class="binding-config-title binding-config-title-with-action">
+                <span>Mute</span>
+                <div id="binding-config-mute-mode-root" class="binding-config-mode-root">
+                  <button
+                    id="binding-config-mute-mode-button"
+                    type="button"
+                    class="binding-config-mode-trigger"
+                    title="Mute behavior: Toggle on press"
+                    aria-label="Mute behavior"
+                    aria-haspopup="true"
+                    aria-expanded="false"
+                  >
+                    <svg class="binding-config-mode-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                      <circle cx="12" cy="12" r="3"></circle>
+                      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 0 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1A2 2 0 0 1 4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.9L4.2 7A2 2 0 0 1 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1A2 2 0 0 1 19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1h.1a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"></path>
+                    </svg>
+                  </button>
+                  <div id="binding-config-mute-mode-menu" class="binding-config-mode-menu hidden" role="menu" aria-label="Mute behavior options">
+                    <button id="binding-config-mute-mode-toggle" type="button" class="binding-config-mode-option" data-mode="ToggleOnPress" role="menuitem">Toggle</button>
+                    <button id="binding-config-mute-mode-value" type="button" class="binding-config-mode-option" data-mode="SetFromValue" role="menuitem">Match</button>
+                  </div>
+                </div>
+              </span>
               <div class="binding-config-actions">
                 <span id="binding-config-mute-label" class="binding-config-label">Not mapped</span>
                 <button id="binding-config-mute-learn" type="button" class="binding-config-button binding-config-button--primary">Learn</button>

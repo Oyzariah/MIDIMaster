@@ -65,6 +65,8 @@ pub struct AuxiliaryControl {
     pub deadzone: f32,
     #[serde(default)]
     pub debounce_ms: u64,
+    #[serde(default)]
+    pub mute_behavior: MuteBehavior,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -89,6 +91,18 @@ pub enum MidiMode {
 impl Default for MidiMode {
     fn default() -> Self {
         MidiMode::Absolute
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum MuteBehavior {
+    ToggleOnPress,
+    SetFromValue,
+}
+
+impl Default for MuteBehavior {
+    fn default() -> Self {
+        MuteBehavior::ToggleOnPress
     }
 }
 
@@ -449,6 +463,8 @@ pub struct Binding {
     pub deadzone: f32,
     pub debounce_ms: u64,
     #[serde(default)]
+    pub mute_behavior: MuteBehavior,
+    #[serde(default)]
     pub mute_control: Option<AuxiliaryControl>,
     #[serde(default)]
     pub assign_control: Option<AuxiliaryControl>,
@@ -650,6 +666,7 @@ mod tests {
             custom_curve: Vec::new(),
             deadzone: 0.0,
             debounce_ms: 0,
+            mute_behavior: MuteBehavior::ToggleOnPress,
             mute_control: None,
             assign_control: None,
             assign_mode: AssignMode::Add,
@@ -712,5 +729,29 @@ mod tests {
         assert_eq!(binding.custom_curve.len(), 3);
         assert_eq!(binding.custom_curve[1].x, 0.4);
         assert_eq!(binding.custom_curve[1].y, 0.7);
+    }
+
+    #[test]
+    fn deserialize_binding_defaults_mute_behavior_to_toggle_on_press() {
+        let binding: Binding =
+            serde_json::from_value(binding_base_json()).expect("binding should deserialize");
+        assert_eq!(binding.mute_behavior, MuteBehavior::ToggleOnPress);
+    }
+
+    #[test]
+    fn deserialize_aux_control_defaults_mute_behavior_to_toggle_on_press() {
+        let aux: AuxiliaryControl = serde_json::from_value(serde_json::json!({
+            "device_id": "midi-dev",
+            "channel": 0,
+            "controller": 10,
+            "msg_type": "ControlChange",
+            "control_kind": "Button",
+            "mode": "Absolute",
+            "deadzone": 0.0,
+            "debounce_ms": 0
+        }))
+        .expect("aux control should deserialize");
+
+        assert_eq!(aux.mute_behavior, MuteBehavior::ToggleOnPress);
     }
 }

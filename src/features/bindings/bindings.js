@@ -130,6 +130,9 @@ export function createBindingsFeature({
   }
 
   function displayModeName(binding) {
+    if (effectiveIsButton(binding) && binding?.action === "ToggleMute") {
+      return muteBehaviorLabel(binding?.mute_behavior);
+    }
     if (effectiveIsButton(binding)) return "Toggle";
     return binding?.mode === "Relative" ? "Relative" : "Absolute";
   }
@@ -319,6 +322,42 @@ export function createBindingsFeature({
     return "Auto";
   }
 
+  function normalizeMuteBehavior(raw) {
+    return raw === "SetFromValue" ? "SetFromValue" : "ToggleOnPress";
+  }
+
+  function muteBehaviorLabel(raw) {
+    return normalizeMuteBehavior(raw) === "SetFromValue" ? "Match" : "Toggle";
+  }
+
+  function muteBehaviorTooltip(raw) {
+    return normalizeMuteBehavior(raw) === "SetFromValue"
+      ? "Match: mute when MIDI value is above 0, unmute when it returns to 0."
+      : "Toggle: each button press flips mute on or off; button release does nothing.";
+  }
+
+  function buttonModeValue(binding) {
+    return normalizeMuteBehavior(binding?.mute_behavior) === "SetFromValue"
+      ? "button_match"
+      : "button_toggle";
+  }
+
+  function modeTooltip(raw) {
+    if (raw === "button_match") {
+      return muteBehaviorTooltip("SetFromValue");
+    }
+    if (raw === "button_toggle") {
+      return muteBehaviorTooltip("ToggleOnPress");
+    }
+    return "";
+  }
+
+  function assignModeTooltip(raw) {
+    return raw === "Replace"
+      ? "Replace: assigning a focused app replaces the current target list."
+      : "Add: assigning a focused app appends it to the current target list.";
+  }
+
   function normalizeFaderCurve(raw) {
     const value = String(raw || "Linear");
     return ["Linear", "Exponential", "Logarithmic", "SCurve", "Custom"].includes(value)
@@ -468,6 +507,10 @@ export function createBindingsFeature({
     binding.relative_format = "Auto";
     binding.fader_curve = normalizeFaderCurve(binding.fader_curve);
     binding.custom_curve = customCurvePoints(binding);
+    binding.mute_behavior = normalizeMuteBehavior(binding.mute_behavior);
+    if (binding.mute_control && typeof binding.mute_control === "object") {
+      binding.mute_control.mute_behavior = normalizeMuteBehavior(binding.mute_control.mute_behavior);
+    }
   }
 
   function effectiveIsButton(binding) {
@@ -785,6 +828,7 @@ export function createBindingsFeature({
     const lockClear = transferLocked || Boolean(configLearnField);
     if (muteClear) muteClear.disabled = lockClear;
     if (assignClear) assignClear.disabled = lockClear;
+    if (d.bindingConfigMuteModeButton) d.bindingConfigMuteModeButton.disabled = lockClear;
     if (d.bindingConfigAssignModeButton) d.bindingConfigAssignModeButton.disabled = lockClear;
     if (previewLearnButton) {
       previewLearnButton.classList.toggle("is-learning", learningPrimary);
@@ -839,9 +883,31 @@ export function createBindingsFeature({
     const badge = document.createElement("span");
     badge.className = "binding-config-inline-badge";
     badge.textContent = mode;
+    badge.title = assignModeTooltip(mode);
+    badge.setAttribute("aria-label", badge.title);
 
     d.bindingConfigAssignLabel.appendChild(main);
     d.bindingConfigAssignLabel.appendChild(badge);
+  }
+
+  function renderMuteMappingLabel(binding) {
+    if (!d.bindingConfigMuteLabel) return;
+    const behavior = muteBehaviorLabel(binding?.mute_control?.mute_behavior || binding?.mute_behavior);
+    const mappingText = formatMidiControlLabel(binding?.mute_control);
+    d.bindingConfigMuteLabel.innerHTML = "";
+
+    const main = document.createElement("span");
+    main.className = "binding-config-label-main";
+    main.textContent = mappingText;
+
+    const badge = document.createElement("span");
+    badge.className = "binding-config-inline-badge";
+    badge.textContent = behavior;
+    badge.title = muteBehaviorTooltip(binding?.mute_control?.mute_behavior || binding?.mute_behavior);
+    badge.setAttribute("aria-label", badge.title);
+
+    d.bindingConfigMuteLabel.appendChild(main);
+    d.bindingConfigMuteLabel.appendChild(badge);
   }
 
   function normalizeAuxControl(learned) {
@@ -855,6 +921,7 @@ export function createBindingsFeature({
       mode: "Absolute",
       deadzone: 0,
       debounce_ms: 0,
+      mute_behavior: "ToggleOnPress",
     };
   }
 
@@ -1093,6 +1160,7 @@ export function createBindingsFeature({
     stopHotkeyLearn();
     stopAuxLearn();
     clearTransferPrompt();
+    closeMuteModeMenu();
     closeAssignModeMenu();
     stopConfigPreviewTimer();
     customCurvePointer = null;
@@ -1110,6 +1178,9 @@ export function createBindingsFeature({
     if (!binding) return;
     if (!("mute_control" in binding)) binding.mute_control = null;
     if (!("assign_control" in binding)) binding.assign_control = null;
+    if (binding.mute_control && typeof binding.mute_control === "object") {
+      binding.mute_control.mute_behavior = normalizeMuteBehavior(binding.mute_control.mute_behavior);
+    }
     if (binding.assign_mode !== "Replace") binding.assign_mode = "Add";
   }
 
@@ -1120,16 +1191,28 @@ export function createBindingsFeature({
       return;
     }
     closeAssignModeMenu();
+    closeMuteModeMenu();
     ensureAuxShape(binding);
     ensureBindingShape(binding);
     if (d.bindingConfigName) d.bindingConfigName.value = binding.name?.trim() || "";
     renderCurveCards();
     renderCustomCurveEditor();
-    if (d.bindingConfigMuteLabel) d.bindingConfigMuteLabel.textContent = formatMidiControlLabel(binding.mute_control);
+    renderMuteMappingLabel(binding);
     renderAssignMappingLabel(binding);
+    syncMuteModeUi(binding?.mute_control?.mute_behavior || binding?.mute_behavior || "ToggleOnPress");
     syncAssignModeUi(binding.assign_mode || "Add");
     renderConfigPreview();
     updateAuxLearnUi();
+  }
+
+  function closeMuteModeMenu() {
+    if (d.bindingConfigMuteModeMenu) d.bindingConfigMuteModeMenu.classList.add("hidden");
+    if (d.bindingConfigMuteModeButton) d.bindingConfigMuteModeButton.setAttribute("aria-expanded", "false");
+  }
+
+  function openMuteModeMenu() {
+    if (d.bindingConfigMuteModeMenu) d.bindingConfigMuteModeMenu.classList.remove("hidden");
+    if (d.bindingConfigMuteModeButton) d.bindingConfigMuteModeButton.setAttribute("aria-expanded", "true");
   }
 
   function closeAssignModeMenu() {
@@ -1144,15 +1227,35 @@ export function createBindingsFeature({
 
   function syncAssignModeUi(mode) {
     const currentMode = mode === "Replace" ? "Replace" : "Add";
+    const tooltip = assignModeTooltip(currentMode);
     if (d.bindingConfigAssignModeButton) {
-      d.bindingConfigAssignModeButton.title = `Assign mode: ${currentMode}`;
-      d.bindingConfigAssignModeButton.setAttribute("aria-label", `Assign mode: ${currentMode}`);
+      d.bindingConfigAssignModeButton.title = tooltip;
+      d.bindingConfigAssignModeButton.setAttribute("aria-label", tooltip);
     }
     if (d.bindingConfigAssignModeAdd) {
       d.bindingConfigAssignModeAdd.classList.toggle("is-selected", currentMode === "Add");
+      d.bindingConfigAssignModeAdd.title = assignModeTooltip("Add");
     }
     if (d.bindingConfigAssignModeReplace) {
       d.bindingConfigAssignModeReplace.classList.toggle("is-selected", currentMode === "Replace");
+      d.bindingConfigAssignModeReplace.title = assignModeTooltip("Replace");
+    }
+  }
+
+  function syncMuteModeUi(mode) {
+    const currentMode = normalizeMuteBehavior(mode);
+    const tooltip = muteBehaviorTooltip(currentMode);
+    if (d.bindingConfigMuteModeButton) {
+      d.bindingConfigMuteModeButton.title = tooltip;
+      d.bindingConfigMuteModeButton.setAttribute("aria-label", tooltip);
+    }
+    if (d.bindingConfigMuteModeToggle) {
+      d.bindingConfigMuteModeToggle.classList.toggle("is-selected", currentMode === "ToggleOnPress");
+      d.bindingConfigMuteModeToggle.title = muteBehaviorTooltip("ToggleOnPress");
+    }
+    if (d.bindingConfigMuteModeValue) {
+      d.bindingConfigMuteModeValue.classList.toggle("is-selected", currentMode === "SetFromValue");
+      d.bindingConfigMuteModeValue.title = muteBehaviorTooltip("SetFromValue");
     }
   }
 
@@ -1206,6 +1309,9 @@ export function createBindingsFeature({
       binding.control_kind = normalizeControlKind(mapping.control_kind);
       binding.mode = mapping.mode || binding.mode || "Absolute";
     } else {
+      if (field === "mute_control" && mapping && typeof mapping === "object") {
+        mapping.mute_behavior = normalizeMuteBehavior(mapping.mute_behavior || binding.mute_behavior);
+      }
       binding[field] = mapping;
     }
     configAcceptedTransfers.set(field, { field, mapping, conflict });
@@ -1247,6 +1353,9 @@ export function createBindingsFeature({
       binding.control_kind = normalizeControlKind(mapping.control_kind);
       binding.mode = mapping.mode || binding.mode || "Absolute";
     } else {
+      if (field === "mute_control" && mapping && typeof mapping === "object") {
+        mapping.mute_behavior = normalizeMuteBehavior(mapping.mute_behavior || binding.mute_behavior);
+      }
       binding[field] = mapping;
     }
     configAcceptedTransfers.delete(field);
@@ -1592,30 +1701,37 @@ export function createBindingsFeature({
         modeMenu.className = "target-menu hidden";
 
         const modeOptions = [
-          { value: "button", label: "Toggle", badge: null },
-          { value: "fader_abs", label: "Absolute", badge: null },
-          { value: "fader_rel", label: "Relative", badge: null },
+          { value: "fader_abs", label: "Absolute", badge: "Fader", title: "" },
+          { value: "fader_rel", label: "Relative", badge: "Fader", title: "" },
+          { value: "button_toggle", label: "Toggle", badge: "Button", title: modeTooltip("button_toggle") },
+          { value: "button_match", label: "Match", badge: "Button", title: modeTooltip("button_match") },
         ];
 
         let modeValue = "fader_abs";
-        if (effectiveIsButton(binding)) {
-          modeValue = "button";
+        if (effectiveIsButton(binding) && binding.action === "ToggleMute") {
+          modeValue = buttonModeValue(binding);
+        } else if (effectiveIsButton(binding)) {
+          modeValue = "button_toggle";
         } else if (binding.mode === "Relative") {
           modeValue = "fader_rel";
         }
 
         const renderModeLabel = (container, option) => {
-          container.innerHTML = "";
-          const label = document.createElement("span");
-          label.className = "mode-label";
-          label.textContent = option?.label || "";
-          container.appendChild(label);
+          renderLabelWithBadges(container, {
+            text: option?.label || "",
+            badges: option?.badge ? [{ text: option.badge, kind: "neutral" }] : [],
+            truncate: false,
+          });
         };
 
         const applyModeSelection = async (nextModeValue) => {
-          if (nextModeValue === "button") {
+          if (nextModeValue === "button_toggle" || nextModeValue === "button_match") {
             binding.control_kind = "Button";
             binding.action = "ToggleMute";
+            binding.mute_behavior = nextModeValue === "button_match" ? "SetFromValue" : "ToggleOnPress";
+            if (binding.mute_control && typeof binding.mute_control === "object") {
+              binding.mute_control.mute_behavior = binding.mute_behavior;
+            }
           } else if (nextModeValue === "fader_rel") {
             binding.control_kind = "Continuous";
             binding.mode = "Relative";
@@ -1643,6 +1759,10 @@ export function createBindingsFeature({
           const optionLabel = document.createElement("span");
           optionLabel.className = "target-label";
           renderModeLabel(optionLabel, option);
+          if (option.title) {
+            optionButton.title = option.title;
+            optionButton.setAttribute("aria-label", option.title);
+          }
           optionButton.appendChild(optionLabel);
           optionButton.addEventListener("click", async (event) => {
             event.preventDefault();
@@ -1656,6 +1776,10 @@ export function createBindingsFeature({
 
         const activeModeOption = modeOptions.find((option) => option.value === modeValue) || modeOptions[0];
         renderModeLabel(modeDisplay, activeModeOption);
+        if (activeModeOption.title) {
+          modeButton.title = activeModeOption.title;
+          modeButton.setAttribute("aria-label", activeModeOption.title);
+        }
 
         wireDropdownToggle({ root: modeDropdown, menu: modeMenu, trigger: modeButton });
 
@@ -2167,6 +2291,19 @@ export function createBindingsFeature({
         renderConfigModal();
       });
     }
+    if (d.bindingConfigMuteModeButton) {
+      d.bindingConfigMuteModeButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const menu = d.bindingConfigMuteModeMenu;
+        if (!menu) return;
+        if (menu.classList.contains("hidden")) {
+          openMuteModeMenu();
+        } else {
+          closeMuteModeMenu();
+        }
+      });
+    }
     if (d.bindingConfigAssignClear) {
       d.bindingConfigAssignClear.addEventListener("click", () => {
         if (transferPrompt) return;
@@ -2176,6 +2313,28 @@ export function createBindingsFeature({
         configAcceptedTransfers.delete("assign_control");
         renderConfigModal();
       });
+    }
+    const onMuteModeOptionClick = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const button = event.currentTarget;
+      const mode = normalizeMuteBehavior(button?.dataset?.mode);
+      const binding = getConfigBinding();
+      if (!binding) return;
+      binding.mute_behavior = mode;
+      if (binding.mute_control && typeof binding.mute_control === "object") {
+        binding.mute_control.mute_behavior = mode;
+      }
+      renderMuteMappingLabel(binding);
+      syncMuteModeUi(mode);
+      closeMuteModeMenu();
+      renderConfigPreview();
+    };
+    if (d.bindingConfigMuteModeToggle) {
+      d.bindingConfigMuteModeToggle.addEventListener("click", onMuteModeOptionClick);
+    }
+    if (d.bindingConfigMuteModeValue) {
+      d.bindingConfigMuteModeValue.addEventListener("click", onMuteModeOptionClick);
     }
     if (d.bindingConfigAssignModeButton) {
       d.bindingConfigAssignModeButton.addEventListener("click", (event) => {
@@ -2261,6 +2420,10 @@ export function createBindingsFeature({
 
     document.addEventListener("click", (event) => {
       if (!configBindingId) return;
+      const muteRoot = d.bindingConfigMuteModeRoot;
+      if (muteRoot && !muteRoot.contains(event.target)) {
+        closeMuteModeMenu();
+      }
       const root = d.bindingConfigAssignModeRoot;
       if (!root || root.contains(event.target)) return;
       closeAssignModeMenu();
