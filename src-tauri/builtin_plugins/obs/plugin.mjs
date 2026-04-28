@@ -275,13 +275,22 @@ export async function activate(ctx) {
     try {
       const writes = Array.from(pendingVolumeWrites.entries());
       pendingVolumeWrites.clear();
+      if (!connected || !ws || ws.readyState !== WebSocket.OPEN || writes.length === 0) {
+        return;
+      }
 
+      const sentAt = Date.now();
       for (const [inputName, level] of writes) {
-        if (!connected || !ws || ws.readyState !== WebSocket.OPEN) break;
-        await request("SetInputVolume", { inputName, inputVolumeMul: level });
-        lastLocalWriteAt.set(String(inputName), Date.now());
+        lastLocalWriteAt.set(String(inputName), sentAt);
         lastSentVolumeByInput.set(String(inputName), level);
       }
+
+      await Promise.all(
+        writes.map(([inputName, level]) => request("SetInputVolume", {
+          inputName,
+          inputVolumeMul: level,
+        })),
+      );
     } finally {
       volumeFlushInFlight = false;
       if (pendingVolumeWrites.size > 0) {
