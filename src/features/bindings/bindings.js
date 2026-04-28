@@ -34,6 +34,7 @@ export function createBindingsFeature({
   createTargetIcon,
   resolveOsdTarget,
   showChoices,
+  showConfirm,
 }) {
   if (typeof invoke !== "function") {
     throw new Error("createBindingsFeature: invoke is required");
@@ -78,6 +79,14 @@ export function createBindingsFeature({
   const getHost = (typeof getPluginHost === "function") ? getPluginHost : (() => null);
   const iconForTarget = (typeof createTargetIcon === "function") ? createTargetIcon : (() => document.createElement("span"));
   const resolveTargetDisplay = (typeof resolveOsdTarget === "function") ? resolveOsdTarget : (() => null);
+  const confirmAction = (typeof showConfirm === "function")
+    ? showConfirm
+    : async ({ message = "" } = {}) => {
+      if (typeof window !== "undefined" && typeof window.confirm === "function") {
+        return window.confirm(message);
+      }
+      return false;
+    };
   const getEditingId = (typeof getEditingBindingId === "function") ? getEditingBindingId : (() => null);
   const setEditingId = (typeof setEditingBindingId === "function") ? setEditingBindingId : (() => { });
   const getPendingFocusId = (typeof getPendingFocusBindingId === "function") ? getPendingFocusBindingId : (() => null);
@@ -1994,6 +2003,16 @@ export function createBindingsFeature({
         deleteButton.className = "binding-action delete";
         setActionIcon(deleteButton, "delete", "Delete binding");
         deleteButton.addEventListener("click", async () => {
+          const confirmed = await confirmAction({
+            title: "Delete binding?",
+            message: `Delete binding "${binding.name || "Binding"}"?`,
+            confirmLabel: "Delete",
+            cancelLabel: "Cancel",
+            confirmVariant: "danger",
+          });
+          if (!confirmed) {
+            return;
+          }
           try {
             await invoke("remove_binding", { binding });
             const next = getB();
@@ -2074,13 +2093,21 @@ export function createBindingsFeature({
         delBtn.className = "icon-button danger";
         delBtn.onclick = async (e) => {
           e.stopPropagation();
-          if (confirm("Delete broken binding?")) {
-            try {
-              await invoke("remove_binding", { binding });
-            } catch { }
-            await saveProfile();
-            renderBindings();
+          const confirmed = await confirmAction({
+            title: "Delete broken binding?",
+            message: "This binding could not be rendered correctly and will be removed.",
+            confirmLabel: "Delete",
+            cancelLabel: "Cancel",
+            confirmVariant: "danger",
+          });
+          if (!confirmed) {
+            return;
           }
+          try {
+            await invoke("remove_binding", { binding });
+          } catch { }
+          await saveProfile();
+          renderBindings();
         };
         errorItem.appendChild(delBtn);
 

@@ -1305,6 +1305,7 @@ bindingsFeature = createBindingsFeature({
   createTargetIcon,
   resolveOsdTarget,
   showChoices: (options = {}) => alertsController?.showChoices?.(options) || Promise.resolve("close"),
+  showConfirm: (options = {}) => alertsController?.showConfirm?.(options) || Promise.resolve(false),
 });
 
 midiFeature = createMidiFeature({
