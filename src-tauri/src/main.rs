@@ -78,6 +78,7 @@ struct AppState {
     active_profile: Mutex<Option<Profile>>,
     binding_state: Arc<Mutex<HashMap<BindingKey, BindingState>>>,
     feedback_values: Arc<Mutex<HashMap<BindingKey, f32>>>,
+    last_mute_input_active: Mutex<HashMap<BindingKey, bool>>,
     focus_volume_failure_logs: Mutex<HashMap<String, Instant>>,
     mute_transition_until: Mutex<HashMap<BindingKey, Instant>>,
     last_target_mute_state: Mutex<HashMap<BindingKey, bool>>,
@@ -328,7 +329,9 @@ impl AppState {
         event_value: u8,
         current_muted: bool,
         behavior: model::MuteBehavior,
+        previous_input_active: Option<bool>,
     ) -> Option<bool> {
+        let input_active = event_value > 0;
         match behavior {
             model::MuteBehavior::ToggleOnPress => {
                 if event_value == 0 {
@@ -338,11 +341,15 @@ impl AppState {
                 }
             }
             model::MuteBehavior::SetFromValue => {
-                let next_muted = event_value > 0;
-                if next_muted == current_muted {
+                if let Some(previous_input_active) = previous_input_active {
+                    if previous_input_active == input_active {
+                        return None;
+                    }
+                    Some(!current_muted)
+                } else if input_active == current_muted {
                     None
                 } else {
-                    Some(next_muted)
+                    Some(!current_muted)
                 }
             }
         }
@@ -676,13 +683,34 @@ impl AppState {
                         .first()
                         .and_then(&resolve_target_muted)
                         .unwrap_or(fallback_muted);
+                    let previous_input_active = if aux_mapping.mute_behavior
+                        == model::MuteBehavior::SetFromValue
+                    {
+                        self.last_mute_input_active
+                            .lock()
+                            .ok()
+                            .and_then(|inputs| inputs.get(&key).copied())
+                    } else {
+                        None
+                    };
                     let Some(next_muted) = Self::resolve_target_mute_state(
                         event.value,
                         current_muted,
                         aux_mapping.mute_behavior.clone(),
+                        previous_input_active,
                     ) else {
+                        if aux_mapping.mute_behavior == model::MuteBehavior::SetFromValue {
+                            if let Ok(mut inputs) = self.last_mute_input_active.lock() {
+                                inputs.insert(key.clone(), event.value > 0);
+                            }
+                        }
                         return Ok(());
                     };
+                    if aux_mapping.mute_behavior == model::MuteBehavior::SetFromValue {
+                        if let Ok(mut inputs) = self.last_mute_input_active.lock() {
+                            inputs.insert(key.clone(), event.value > 0);
+                        }
+                    }
                     for (target_index, target) in targets.iter().enumerate() {
                         match target {
                             model::BindingTarget::Master => {
@@ -1066,13 +1094,33 @@ impl AppState {
                 .and_then(|fb| fb.get(&key).cloned())
                 .unwrap_or(0.0);
             let current_muted = current_val > 0.5;
+            let previous_input_active = if binding.mute_behavior == model::MuteBehavior::SetFromValue
+            {
+                self.last_mute_input_active
+                    .lock()
+                    .ok()
+                    .and_then(|inputs| inputs.get(&key).copied())
+            } else {
+                None
+            };
             let Some(muted) = Self::resolve_target_mute_state(
                 event.value,
                 current_muted,
                 binding.mute_behavior.clone(),
+                previous_input_active,
             ) else {
+                if binding.mute_behavior == model::MuteBehavior::SetFromValue {
+                    if let Ok(mut inputs) = self.last_mute_input_active.lock() {
+                        inputs.insert(key.clone(), event.value > 0);
+                    }
+                }
                 return Ok(());
             };
+            if binding.mute_behavior == model::MuteBehavior::SetFromValue {
+                if let Ok(mut inputs) = self.last_mute_input_active.lock() {
+                    inputs.insert(key.clone(), event.value > 0);
+                }
+            }
             let mut any_applied = false;
 
             for (target_index, target) in targets.iter().enumerate() {
@@ -1690,33 +1738,103 @@ mod tests {
     }
 
     #[test]
-    fn set_from_value_mutes_on_nonzero_and_unmutes_on_zero() {
+    fn match_mode_toggles_on_latched_state_changes() {
         assert_eq!(
-            AppState::resolve_target_mute_state(0, false, model::MuteBehavior::SetFromValue),
+            AppState::resolve_target_mute_state(
+                0,
+                false,
+                model::MuteBehavior::SetFromValue,
+                None
+            ),
             None
         );
         assert_eq!(
-            AppState::resolve_target_mute_state(127, false, model::MuteBehavior::SetFromValue),
+            AppState::resolve_target_mute_state(
+                127,
+                false,
+                model::MuteBehavior::SetFromValue,
+                None
+            ),
             Some(true)
         );
         assert_eq!(
-            AppState::resolve_target_mute_state(0, true, model::MuteBehavior::SetFromValue),
+            AppState::resolve_target_mute_state(
+                0,
+                true,
+                model::MuteBehavior::SetFromValue,
+                Some(true)
+            ),
             Some(false)
+        );
+        assert_eq!(
+            AppState::resolve_target_mute_state(
+                127,
+                true,
+                model::MuteBehavior::SetFromValue,
+                Some(true)
+            ),
+            None
+        );
+        assert_eq!(
+            AppState::resolve_target_mute_state(
+                0,
+                false,
+                model::MuteBehavior::SetFromValue,
+                Some(false)
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn match_mode_ignores_duplicate_latched_values() {
+        assert_eq!(
+            AppState::resolve_target_mute_state(
+                127,
+                true,
+                model::MuteBehavior::SetFromValue,
+                Some(true)
+            ),
+            None
+        );
+        assert_eq!(
+            AppState::resolve_target_mute_state(
+                0,
+                false,
+                model::MuteBehavior::SetFromValue,
+                Some(false)
+            ),
+            None
         );
     }
 
     #[test]
     fn toggle_on_press_ignores_zero_and_toggles_on_press() {
         assert_eq!(
-            AppState::resolve_target_mute_state(0, false, model::MuteBehavior::ToggleOnPress),
+            AppState::resolve_target_mute_state(
+                0,
+                false,
+                model::MuteBehavior::ToggleOnPress,
+                None
+            ),
             None
         );
         assert_eq!(
-            AppState::resolve_target_mute_state(127, false, model::MuteBehavior::ToggleOnPress),
+            AppState::resolve_target_mute_state(
+                127,
+                false,
+                model::MuteBehavior::ToggleOnPress,
+                Some(false)
+            ),
             Some(true)
         );
         assert_eq!(
-            AppState::resolve_target_mute_state(127, true, model::MuteBehavior::ToggleOnPress),
+            AppState::resolve_target_mute_state(
+                127,
+                true,
+                model::MuteBehavior::ToggleOnPress,
+                Some(true)
+            ),
             Some(false)
         );
     }
@@ -1819,6 +1937,7 @@ fn main() {
                 active_profile: Mutex::new(None),
                 binding_state: Arc::new(Mutex::new(HashMap::new())),
                 feedback_values: Arc::new(Mutex::new(HashMap::new())),
+                last_mute_input_active: Mutex::new(HashMap::new()),
                 focus_volume_failure_logs: Mutex::new(HashMap::new()),
                 mute_transition_until: Mutex::new(HashMap::new()),
                 last_target_mute_state: Mutex::new(HashMap::new()),

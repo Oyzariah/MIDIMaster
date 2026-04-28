@@ -341,7 +341,7 @@ export function createBindingsFeature({
 
   function muteBehaviorTooltip(raw) {
     return normalizeMuteBehavior(raw) === "SetFromValue"
-      ? "Match: mute when MIDI value is above 0, unmute when it returns to 0."
+      ? "Match: for latched buttons, toggle mute whenever the button changes between off and on states."
       : "Toggle: each button press flips mute on or off; button release does nothing.";
   }
 
