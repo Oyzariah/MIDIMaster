@@ -8,6 +8,12 @@ function clamp01(v) {
   return Math.max(0, Math.min(1, n));
 }
 
+const LOCAL_WRITE_QUIET_MS = 1200;
+const FEEDBACK_INTENT_HOLD_MS = 1200;
+const FEEDBACK_INTENT_MATCH_EPSILON = 0.02;
+const VOLUME_WRITE_INTERVAL_MS = 16;
+const VOLUME_WRITE_EPSILON = 0.002;
+
 function isOsdWindow() {
   try {
     return new URLSearchParams(window.location.search).get("osd") === "1";
@@ -127,6 +133,11 @@ export async function activate(ctx) {
   let bindingsByInputVolume = new Map(); // inputName -> Set(bindingId)
   let bindingsByInputMute = new Map();
   const lastLocalWriteAt = new Map(); // inputName -> ms
+  const localVolumeIntentByBinding = new Map(); // bindingId -> { value, at }
+  const pendingVolumeWrites = new Map(); // inputName -> volume
+  const lastSentVolumeByInput = new Map(); // inputName -> volume
+  let volumeFlushTimer = null;
+  let volumeFlushInFlight = false;
 
   function readBindings() {
     try {
@@ -201,7 +212,82 @@ export async function activate(ctx) {
 
   function shouldIgnoreEcho(inputName) {
     const t = lastLocalWriteAt.get(String(inputName)) || 0;
-    return t > 0 && (Date.now() - t) < 350;
+    return t > 0 && (Date.now() - t) < LOCAL_WRITE_QUIET_MS;
+  }
+
+  function rememberLocalVolumeIntent(bindingId, value) {
+    if (!bindingId) return;
+    localVolumeIntentByBinding.set(String(bindingId), {
+      value: clamp01(value),
+      at: Date.now(),
+    });
+  }
+
+  function shouldIgnoreBindingVolumeEcho(bindingId, confirmedValue) {
+    if (!bindingId) return false;
+    const key = String(bindingId);
+    const intent = localVolumeIntentByBinding.get(key);
+    if (!intent) return false;
+    if (Date.now() - intent.at >= FEEDBACK_INTENT_HOLD_MS) {
+      localVolumeIntentByBinding.delete(key);
+      return false;
+    }
+    const delta = Math.abs(Number(confirmedValue) - Number(intent.value));
+    return delta > FEEDBACK_INTENT_MATCH_EPSILON;
+  }
+
+  function scheduleVolumeFlush() {
+    if (volumeFlushTimer) return;
+    volumeFlushTimer = setTimeout(() => {
+      volumeFlushTimer = null;
+      flushVolumeWrites().catch(() => {});
+    }, VOLUME_WRITE_INTERVAL_MS);
+  }
+
+  function queueVolumeWrite(inputName, volume) {
+    const name = String(inputName || "");
+    if (!name) return;
+    const level = clamp01(volume);
+    const pendingLevel = pendingVolumeWrites.get(name);
+    if (typeof pendingLevel === "number" && Math.abs(pendingLevel - level) < VOLUME_WRITE_EPSILON) {
+      return;
+    }
+    const lastSent = lastSentVolumeByInput.get(name);
+    if (
+      typeof lastSent === "number"
+      && Math.abs(lastSent - level) < VOLUME_WRITE_EPSILON
+      && !pendingVolumeWrites.has(name)
+    ) {
+      return;
+    }
+    pendingVolumeWrites.set(name, level);
+    scheduleVolumeFlush();
+  }
+
+  async function flushVolumeWrites() {
+    if (volumeFlushInFlight) return;
+    if (!connected || !ws || ws.readyState !== WebSocket.OPEN) {
+      pendingVolumeWrites.clear();
+      return;
+    }
+
+    volumeFlushInFlight = true;
+    try {
+      const writes = Array.from(pendingVolumeWrites.entries());
+      pendingVolumeWrites.clear();
+
+      for (const [inputName, level] of writes) {
+        if (!connected || !ws || ws.readyState !== WebSocket.OPEN) break;
+        await request("SetInputVolume", { inputName, inputVolumeMul: level });
+        lastLocalWriteAt.set(String(inputName), Date.now());
+        lastSentVolumeByInput.set(String(inputName), level);
+      }
+    } finally {
+      volumeFlushInFlight = false;
+      if (pendingVolumeWrites.size > 0) {
+        scheduleVolumeFlush();
+      }
+    }
   }
 
   async function syncAllFeedback(opts = null) {
@@ -441,6 +527,7 @@ export async function activate(ctx) {
               const set = bindingsByInputVolume.get(inputName);
               if (set) {
                 set.forEach((bid) => {
+                  if (shouldIgnoreBindingVolumeEcho(bid, vol)) return;
                   ctx.feedback.set(bid, vol, "Volume", { silent: true }).catch(() => {});
                 });
               }
@@ -491,6 +578,8 @@ export async function activate(ctx) {
       setStatus(false, "Disconnected");
       ws = null;
       pending.clear();
+      pendingVolumeWrites.clear();
+      lastSentVolumeByInput.clear();
     };
 
     ws.onerror = () => {
@@ -692,6 +781,9 @@ export async function activate(ctx) {
       const bindingId = payload?.binding_id;
       const action = payload?.action;
       const value = payload?.value;
+      const isPrimaryTarget = payload?.is_primary_target !== false;
+      const targetIndex = Number(payload?.target_index ?? 0);
+      const targetCount = Number(payload?.target_count ?? 1);
       const target = payload?.target || {};
       const kind = target.kind;
       const data = target.data || {};
@@ -704,10 +796,15 @@ export async function activate(ctx) {
           if (!inputName) return;
           if (action === "Volume") {
             const vol = clamp01(value);
-            lastLocalWriteAt.set(String(inputName), Date.now());
-            await request("SetInputVolume", { inputName, inputVolumeMul: vol });
             knownVolumes.set(String(inputName), vol);
-            if (bindingId) await ctx.feedback.set(bindingId, vol, action);
+            if (bindingId && isPrimaryTarget) {
+              rememberLocalVolumeIntent(bindingId, vol);
+              ctx.feedback.set(bindingId, vol, action).catch(() => {});
+            }
+            queueVolumeWrite(inputName, vol);
+            if (Number.isFinite(targetCount) && targetCount > 1 && targetIndex >= targetCount - 1) {
+              flushVolumeWrites().catch(() => {});
+            }
           } else if (action === "ToggleMute") {
             const muted = clamp01(value) > 0.5;
             lastLocalWriteAt.set(String(inputName), Date.now());
@@ -780,6 +877,7 @@ export async function activate(ctx) {
         }
       } catch (e) {
         // ignore
+        pendingVolumeWrites.clear();
       }
     },
   });

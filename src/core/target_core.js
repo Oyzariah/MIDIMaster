@@ -16,12 +16,14 @@ function integrationTargetKey(integration) {
   const data = integration.data || {};
 
   // Exclude non-stable, display-only fields so keys persist across reconnects.
+  // Do not strip *_name fields here: some integrations, including OBS, use
+  // those as the actual stable identity for stored targets.
   const stableData = { ...data };
-  for (const k of Object.keys(stableData)) {
-    if (k.endsWith("_name") || k.endsWith("Name") || k === "label" || k === "icon_data") {
-      delete stableData[k];
-    }
-  }
+  delete stableData.label;
+  delete stableData.icon_data;
+  delete stableData.iconData;
+  delete stableData.display_label;
+  delete stableData.displayLabel;
   return `${id}:${kind}:${stableStringify(stableData)}`;
 }
 

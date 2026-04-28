@@ -782,11 +782,11 @@ function integrationStateKeyForTarget(target) {
   const id = String(integration.integration_id || "");
   const kind = String(integration.kind || "");
   const data = (integration.data && typeof integration.data === "object") ? { ...integration.data } : {};
-  for (const k of Object.keys(data)) {
-    if (k.endsWith("_name") || k.endsWith("Name") || k === "label" || k === "icon_data") {
-      delete data[k];
-    }
-  }
+  delete data.label;
+  delete data.icon_data;
+  delete data.iconData;
+  delete data.display_label;
+  delete data.displayLabel;
   return `${id}:${kind}:${stableStringifyForIntegrationState(data)}`;
 }
 
