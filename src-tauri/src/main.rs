@@ -683,16 +683,15 @@ impl AppState {
                         .first()
                         .and_then(&resolve_target_muted)
                         .unwrap_or(fallback_muted);
-                    let previous_input_active = if aux_mapping.mute_behavior
-                        == model::MuteBehavior::SetFromValue
-                    {
-                        self.last_mute_input_active
-                            .lock()
-                            .ok()
-                            .and_then(|inputs| inputs.get(&key).copied())
-                    } else {
-                        None
-                    };
+                    let previous_input_active =
+                        if aux_mapping.mute_behavior == model::MuteBehavior::SetFromValue {
+                            self.last_mute_input_active
+                                .lock()
+                                .ok()
+                                .and_then(|inputs| inputs.get(&key).copied())
+                        } else {
+                            None
+                        };
                     let Some(next_muted) = Self::resolve_target_mute_state(
                         event.value,
                         current_muted,
@@ -1094,15 +1093,15 @@ impl AppState {
                 .and_then(|fb| fb.get(&key).cloned())
                 .unwrap_or(0.0);
             let current_muted = current_val > 0.5;
-            let previous_input_active = if binding.mute_behavior == model::MuteBehavior::SetFromValue
-            {
-                self.last_mute_input_active
-                    .lock()
-                    .ok()
-                    .and_then(|inputs| inputs.get(&key).copied())
-            } else {
-                None
-            };
+            let previous_input_active =
+                if binding.mute_behavior == model::MuteBehavior::SetFromValue {
+                    self.last_mute_input_active
+                        .lock()
+                        .ok()
+                        .and_then(|inputs| inputs.get(&key).copied())
+                } else {
+                    None
+                };
             let Some(muted) = Self::resolve_target_mute_state(
                 event.value,
                 current_muted,
@@ -1740,12 +1739,7 @@ mod tests {
     #[test]
     fn match_mode_toggles_on_latched_state_changes() {
         assert_eq!(
-            AppState::resolve_target_mute_state(
-                0,
-                false,
-                model::MuteBehavior::SetFromValue,
-                None
-            ),
+            AppState::resolve_target_mute_state(0, false, model::MuteBehavior::SetFromValue, None),
             None
         );
         assert_eq!(
@@ -1811,12 +1805,7 @@ mod tests {
     #[test]
     fn toggle_on_press_ignores_zero_and_toggles_on_press() {
         assert_eq!(
-            AppState::resolve_target_mute_state(
-                0,
-                false,
-                model::MuteBehavior::ToggleOnPress,
-                None
-            ),
+            AppState::resolve_target_mute_state(0, false, model::MuteBehavior::ToggleOnPress, None),
             None
         );
         assert_eq!(
