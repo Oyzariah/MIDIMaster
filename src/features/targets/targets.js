@@ -175,6 +175,7 @@ export function createTargetsFeature({
   function categoryForOption(option, fallback = "other") {
     if (!option || option.kind === "divider") return null;
     if (option.category) return option.category;
+    if (option.integrationId || option.integration_id) return "integrations";
     if (option.kind === "master" || option.kind === "focus") return "builtIn";
     if (option.kind === "media-control" || option.kind === "hotkey-target" || option.kind === "open-application-target") return "utilities";
     if (option.kind === "integration-root" || option.kind === "integration-target" || option.kind === "integration-nav") return "integrations";
@@ -198,12 +199,38 @@ export function createTargetsFeature({
     if (option?.kind === "hotkey-target") return "Trigger a keyboard shortcut from a button binding.";
     if (option?.kind === "open-application-target") return "Launch a selected application from a button binding.";
     if (option?.kind === "session") return option.ghost ? "Saved application target is currently unavailable." : "Application audio session.";
-    if (option?.kind === "device") return option.ghost ? "Saved device target is currently unavailable." : "Audio device endpoint.";
+    if (option?.kind === "device") {
+      if (option.ghost) return "Saved device target is currently unavailable.";
+      if (category === "playback") return "Playback output device.";
+      if (category === "recording") return "Recording input device.";
+      return "Audio device endpoint.";
+    }
     if (option?.kind === "integration-root") {
       const meta = INTEGRATION_META[String(option.value || "").toLowerCase()];
       return meta?.description || "Open integration targets.";
     }
-    if (option?.kind === "integration-target") return "";
+    if (option?.kind === "integration-target") {
+      const integration = option?.target?.Integration || option?.target?.integration;
+      const integrationId = String(integration?.integration_id || option?.integrationId || option?.integration_id || "").toLowerCase();
+      const targetKind = String(integration?.kind || "").toLowerCase();
+      if (integrationId === "wavelink") {
+        if (targetKind === "mix") return "Wave Link mix output.";
+        if (targetKind === "channel") return "Wave Link channel.";
+        if (targetKind === "channel_mix") return "Wave Link channel in mix.";
+        return "Wave Link target.";
+      }
+      if (integrationId === "obs") {
+        if (targetKind === "input") return "OBS audio input.";
+        if (targetKind === "scene") return "OBS scene.";
+        if (targetKind === "source") return "OBS scene source.";
+        if (targetKind === "action") return "OBS action.";
+      }
+      if (integrationId === "hue") {
+        if (targetKind === "group") return "Hue room or group.";
+        if (targetKind === "light") return "Hue light.";
+      }
+      return "";
+    }
     if (option?.kind === "integration-nav") return "Open this integration group.";
     if (option?.kind === "action") return "";
     if (option?.kind === "placeholder") return "";
@@ -218,7 +245,7 @@ export function createTargetsFeature({
         tags.push(text);
       }
     };
-    if (option?.ghost) add("Unavailable");
+    if (option?.ghost && !option?.suppressUnavailableTag) add("Unavailable");
 
     const meta = option?.kind === "integration-root"
       ? INTEGRATION_META[String(option.value || "").toLowerCase()]
@@ -1188,11 +1215,24 @@ export function createTargetsFeature({
           sub = [];
         }
         if (!Array.isArray(sub) || sub.length === 0) {
+          let isDisconnected = true;
+          try {
+            const desc = handler?.describeTarget?.({});
+            if (desc && typeof desc.ghost === "boolean") {
+              isDisconnected = desc.ghost;
+            }
+          } catch { }
           sub = [{
-            label: "No targets yet. Connect in Plugins to load targets.",
+            label: isDisconnected
+              ? "Not connected. Connect this integration in Plugins to load targets."
+              : "No compatible targets found for this control.",
             value: "",
             kind: "placeholder",
             ghost: true,
+            icon_data: handler?.icon_data || null,
+            category: "integrations",
+            integrationId,
+            suppressUnavailableTag: true,
           }];
         }
 
@@ -1206,6 +1246,10 @@ export function createTargetsFeature({
                 kind: "integration-nav",
                 value: JSON.stringify(o.nav),
                 nav: o.nav,
+                category: "integrations",
+                integrationId,
+                description: o.description || null,
+                tags: Array.isArray(o.tags) ? o.tags : [],
               };
             }
             const mapped = {
@@ -1214,6 +1258,11 @@ export function createTargetsFeature({
               kind: o.kind || "integration-target",
               value: targetKey((o.target?.Integration || o.target?.integration) || {}),
               target: o.target,
+              category: o.category || "integrations",
+              integrationId,
+              description: o.description || null,
+              tags: Array.isArray(o.tags) ? o.tags : [],
+              suppressUnavailableTag: Boolean(o.suppressUnavailableTag),
             };
             // Carry per-target buttonActions from plugin's getTargetOptions
             if (Array.isArray(o.buttonActions) && o.buttonActions.length > 0) {

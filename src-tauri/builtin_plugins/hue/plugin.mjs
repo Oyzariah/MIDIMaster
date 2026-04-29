@@ -769,10 +769,7 @@ export async function activate(ctx) {
     },
     getTargetOptions: async () => {
       if (!connected) {
-        return [
-          { label: "Philips Hue is not connected", kind: "placeholder", ghost: true },
-          { label: "Connect Hue in Plugins tab", kind: "placeholder", ghost: true },
-        ];
+        return [];
       }
 
       const opts = [];

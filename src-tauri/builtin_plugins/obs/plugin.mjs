@@ -507,10 +507,9 @@ export async function activate(ctx) {
       while (idx < names.length) {
         const name = names[idx++];
         try {
-          // Require that the input both supports volume AND has an audio monitor type.
-          // This helps filter inputs that exist but aren't audio-controllable.
+          // Volume support is the fader capability gate. Some valid OBS audio
+          // inputs do not expose monitor type reliably, so do not require it.
           await request("GetInputVolume", { inputName: name });
-          await request("GetInputAudioMonitorType", { inputName: name });
           audioInputs.add(name);
         } catch {
           // not audio controllable
@@ -745,6 +744,16 @@ export async function activate(ctx) {
             icon_data: iconDataUrl || null,
             target: { Integration: { integration_id: "obs", kind: "input", data: { input_name: String(name) } } },
           });
+        }
+        if (opts.length === 0) {
+          return [{
+            label: "No compatible targets found for this control.",
+            kind: "placeholder",
+            ghost: true,
+            icon_data: iconDataUrl || null,
+            category: "integrations",
+            suppressUnavailableTag: true,
+          }];
         }
         return opts;
       }
