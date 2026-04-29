@@ -101,6 +101,7 @@ export async function activate(ctx) {
         return { label: "OBS Studio", icon_data: iconDataUrl || null };
       },
       getTargetOptions: () => [],
+      onBindingTriggeredBatch: async () => {},
       onBindingTriggered: async () => {},
     });
     return;
@@ -236,6 +237,23 @@ export async function activate(ctx) {
     return delta > FEEDBACK_INTENT_MATCH_EPSILON;
   }
 
+  function normalizeBatchTargets(payload) {
+    const rawTargets = Array.isArray(payload?.targets) ? payload.targets : [];
+    return rawTargets
+      .map((entry, index) => {
+        const target = entry?.target || entry;
+        if (!target || typeof target !== "object") return null;
+        return {
+          target,
+          targetIndex: Number(entry?.target_index ?? index),
+          targetCount: Number(entry?.target_count ?? rawTargets.length),
+          isPrimaryTarget: entry?.is_primary_target === true,
+          originalTargetIndex: Number(entry?.original_target_index ?? entry?.target_index ?? index),
+        };
+      })
+      .filter(Boolean);
+  }
+
   function scheduleVolumeFlush() {
     if (volumeFlushTimer) return;
     volumeFlushTimer = setTimeout(() => {
@@ -297,6 +315,37 @@ export async function activate(ctx) {
         scheduleVolumeFlush();
       }
     }
+  }
+
+  function applyObsVolumeBatch(payload) {
+    const bindingId = payload?.binding_id;
+    const value = payload?.value;
+    const batchTargets = normalizeBatchTargets(payload);
+    if (batchTargets.length === 0) return false;
+
+    const vol = clamp01(value);
+    let queuedAny = false;
+
+    if (bindingId && batchTargets.some((entry) => entry.isPrimaryTarget)) {
+      rememberLocalVolumeIntent(bindingId, vol);
+      ctx.feedback.set(bindingId, vol, "Volume", { silent: false }).catch(() => {});
+    }
+
+    for (const entry of batchTargets) {
+      const target = entry.target;
+      if (target.kind !== "input") continue;
+      const inputName = target.data?.input_name;
+      if (!inputName) continue;
+      knownVolumes.set(String(inputName), vol);
+      queueVolumeWrite(inputName, vol);
+      queuedAny = true;
+    }
+
+    if (queuedAny) {
+      flushVolumeWrites().catch(() => {});
+    }
+
+    return queuedAny;
   }
 
   async function syncAllFeedback(opts = null) {
@@ -786,6 +835,15 @@ export async function activate(ctx) {
 
       return opts;
     },
+    onBindingTriggeredBatch: async (payload) => {
+      if (!connected) return;
+      if (payload?.action !== "Volume") return;
+      try {
+        applyObsVolumeBatch(payload);
+      } catch {
+        pendingVolumeWrites.clear();
+      }
+    },
     onBindingTriggered: async (payload) => {
       const bindingId = payload?.binding_id;
       const action = payload?.action;
@@ -804,16 +862,17 @@ export async function activate(ctx) {
           const inputName = data.input_name;
           if (!inputName) return;
           if (action === "Volume") {
-            const vol = clamp01(value);
-            knownVolumes.set(String(inputName), vol);
-            if (bindingId && isPrimaryTarget) {
-              rememberLocalVolumeIntent(bindingId, vol);
-              ctx.feedback.set(bindingId, vol, action).catch(() => {});
-            }
-            queueVolumeWrite(inputName, vol);
-            if (Number.isFinite(targetCount) && targetCount > 1 && targetIndex >= targetCount - 1) {
-              flushVolumeWrites().catch(() => {});
-            }
+            applyObsVolumeBatch({
+              binding_id: bindingId,
+              action,
+              value,
+              targets: [{
+                target,
+                target_index: targetIndex,
+                target_count: targetCount,
+                is_primary_target: isPrimaryTarget,
+              }],
+            });
           } else if (action === "ToggleMute") {
             const muted = clamp01(value) > 0.5;
             lastLocalWriteAt.set(String(inputName), Date.now());

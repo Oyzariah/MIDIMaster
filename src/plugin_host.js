@@ -38,6 +38,7 @@ export function createPluginHost({ invoke, listen, onUpdatePluginSettings, onInv
   let wsMessageUnlisten = null;
   let wsClosedUnlisten = null;
   let triggerListenerUnlisten = null;
+  let triggerBatchListenerUnlisten = null;
 
   function registerIntegration(integration) {
     if (!integration || typeof integration !== "object") {
@@ -276,7 +277,7 @@ export function createPluginHost({ invoke, listen, onUpdatePluginSettings, onInv
 
   async function start() {
     await bindWsListeners();
-    if (triggerListenerUnlisten) return;
+    if (triggerListenerUnlisten || triggerBatchListenerUnlisten) return;
     triggerListenerUnlisten = await listen("integration_binding_triggered", async (event) => {
       let payload = event?.payload;
       if (typeof payload === "string") {
@@ -295,12 +296,68 @@ export function createPluginHost({ invoke, listen, onUpdatePluginSettings, onInv
         console.error(`Integration ${integrationId} trigger failed`, err);
       }
     });
+
+    triggerBatchListenerUnlisten = await listen("integration_binding_triggered_batch", async (event) => {
+      let payload = event?.payload;
+      if (typeof payload === "string") {
+        try { payload = JSON.parse(payload); } catch { payload = null; }
+      }
+      if (!payload || typeof payload !== "object") return;
+
+      const targets = Array.isArray(payload.targets) ? payload.targets : [];
+      if (targets.length === 0) return;
+
+      const integrationId = String(
+        payload.integration_id
+        || targets[0]?.target?.integration_id
+        || targets[0]?.integration_id
+        || "",
+      );
+      if (!integrationId) return;
+
+      const integration = getIntegration(integrationId);
+      if (!integration) return;
+
+      if (typeof integration.onBindingTriggeredBatch === "function") {
+        try {
+          await integration.onBindingTriggeredBatch(payload);
+        } catch (err) {
+          console.error(`Integration ${integrationId} batch trigger failed`, err);
+        }
+        return;
+      }
+
+      if (typeof integration.onBindingTriggered !== "function") return;
+
+      for (let index = 0; index < targets.length; index += 1) {
+        const targetEntry = targets[index];
+        const target = targetEntry?.target || targetEntry;
+        if (!target || typeof target !== "object") continue;
+        try {
+          await integration.onBindingTriggered({
+            ...payload,
+            target,
+            target_index: Number(targetEntry?.target_index ?? index),
+            target_count: Number(targetEntry?.target_count ?? targets.length),
+            is_primary_target: targetEntry?.is_primary_target === true,
+            original_target_index: Number(targetEntry?.original_target_index ?? targetEntry?.target_index ?? index),
+          });
+        } catch (err) {
+          console.error(`Integration ${integrationId} trigger failed`, err);
+          break;
+        }
+      }
+    });
   }
 
   async function stop() {
     if (triggerListenerUnlisten) {
       try { await triggerListenerUnlisten(); } catch { }
       triggerListenerUnlisten = null;
+    }
+    if (triggerBatchListenerUnlisten) {
+      try { await triggerBatchListenerUnlisten(); } catch { }
+      triggerBatchListenerUnlisten = null;
     }
 
     if (wsMessageUnlisten) {

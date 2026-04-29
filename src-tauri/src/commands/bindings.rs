@@ -1,6 +1,6 @@
 use crate::run_logger;
 use crate::{bindings::BindingKey, model, model::Binding, AppState};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter, State};
 
@@ -152,6 +152,32 @@ fn emit_integration_binding_triggered(
     let _ = app.emit("integration_binding_triggered", payload);
 }
 
+fn emit_integration_binding_triggered_batch(
+    app: &AppHandle,
+    binding_id: &str,
+    action: &model::BindingAction,
+    value: f32,
+    integration_id: &str,
+    targets: Vec<serde_json::Value>,
+    source: Option<&str>,
+    source_sequence: Option<u64>,
+) {
+    let mut payload = serde_json::json!({
+      "binding_id": binding_id,
+      "action": format!("{:?}", action),
+      "value": value,
+      "integration_id": integration_id,
+      "targets": targets,
+    });
+    if let Some(source) = source {
+        payload["source"] = serde_json::Value::String(source.to_string());
+    }
+    if let Some(source_sequence) = source_sequence {
+        payload["source_sequence"] = serde_json::Value::Number(source_sequence.into());
+    }
+    let _ = app.emit("integration_binding_triggered_batch", payload);
+}
+
 fn apply_binding_action_internal(
     app: &AppHandle,
     state: &AppState,
@@ -167,6 +193,7 @@ fn apply_binding_action_internal(
     }
 
     let mut any_applied = false;
+    let mut integration_volume_batches: HashMap<String, Vec<serde_json::Value>> = HashMap::new();
     for (target_index, target) in targets.iter().enumerate() {
         match (&action, target) {
             (model::BindingAction::Volume, model::BindingTarget::Master) => {
@@ -232,19 +259,25 @@ fn apply_binding_action_internal(
                     data,
                 },
             ) => {
-                emit_integration_binding_triggered(
-                    app,
-                    &binding.id,
-                    &action,
-                    value,
-                    target_index,
-                    targets.len(),
-                    integration_id,
-                    kind,
-                    data,
-                    source,
-                    source_sequence,
-                );
+                let group_index = integration_volume_batches
+                    .get(integration_id)
+                    .map(|items| items.len())
+                    .unwrap_or(0);
+                integration_volume_batches
+                    .entry(integration_id.clone())
+                    .or_default()
+                    .push(serde_json::json!({
+                      "target": {
+                        "integration_id": integration_id,
+                        "kind": kind,
+                        "data": data,
+                      },
+                      "target_index": group_index,
+                      "target_count": 0,
+                      "is_primary_target": target_index == 0,
+                      "original_target_index": target_index,
+                      "binding_target_count": targets.len(),
+                    }));
                 any_applied = true;
             }
             (model::BindingAction::ToggleMute, model::BindingTarget::Master) => {
@@ -351,6 +384,34 @@ fn apply_binding_action_internal(
                 }
             }
             _ => {}
+        }
+    }
+
+    if !integration_volume_batches.is_empty() {
+        for (integration_id, mut grouped_targets) in integration_volume_batches {
+            let grouped_count = grouped_targets.len();
+            for (group_index, grouped_target) in grouped_targets.iter_mut().enumerate() {
+                if let Some(map) = grouped_target.as_object_mut() {
+                    map.insert(
+                        "target_index".to_string(),
+                        serde_json::Value::Number((group_index as u64).into()),
+                    );
+                    map.insert(
+                        "target_count".to_string(),
+                        serde_json::Value::Number((grouped_count as u64).into()),
+                    );
+                }
+            }
+            emit_integration_binding_triggered_batch(
+                app,
+                &binding.id,
+                &action,
+                value,
+                &integration_id,
+                grouped_targets,
+                source,
+                source_sequence,
+            );
         }
     }
 

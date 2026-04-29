@@ -273,14 +273,33 @@ function extractIntegrationTarget(target) {
 async function triggerIntegration(binding, action, value) {
   if (!pluginHost || !binding) return false;
   const targets = getBindingTargets(binding);
+  const integrationGroups = new Map();
   let invoked = false;
+
   for (let i = 0; i < targets.length; i += 1) {
     const rawTarget = targets[i];
     const target = extractIntegrationTarget(rawTarget);
     if (!target) continue;
     const handler = pluginHost.getIntegration(target.integration_id);
-    if (!handler || typeof handler.onBindingTriggered !== "function") continue;
+    if (!handler) continue;
 
+    if (action === "Volume") {
+      if (!integrationGroups.has(target.integration_id)) {
+        integrationGroups.set(target.integration_id, { handler, targets: [] });
+      }
+      integrationGroups.get(target.integration_id).targets.push({
+        target,
+        target_index: i,
+        target_count: 0,
+        is_primary_target: i === 0,
+        original_target_index: i,
+        binding_target_count: targets.length,
+      });
+      invoked = true;
+      continue;
+    }
+
+    if (typeof handler.onBindingTriggered !== "function") continue;
     await handler.onBindingTriggered({
       binding_id: binding.id,
       action,
@@ -291,6 +310,38 @@ async function triggerIntegration(binding, action, value) {
       is_primary_target: i === 0,
     });
     invoked = true;
+  }
+
+  for (const [integrationId, entry] of integrationGroups.entries()) {
+    const groupedTargets = entry.targets.map((item, index) => ({
+      ...item,
+      target_index: index,
+      target_count: entry.targets.length,
+    }));
+    if (typeof entry.handler?.onBindingTriggeredBatch === "function") {
+      await entry.handler.onBindingTriggeredBatch({
+        binding_id: binding.id,
+        action,
+        value,
+        integration_id: integrationId,
+        targets: groupedTargets,
+      });
+      continue;
+    }
+
+    if (typeof entry.handler?.onBindingTriggered !== "function") continue;
+    for (const targetEntry of groupedTargets) {
+      await entry.handler.onBindingTriggered({
+        binding_id: binding.id,
+        action,
+        value,
+        target: targetEntry.target,
+        target_index: targetEntry.target_index,
+        target_count: targetEntry.target_count,
+        is_primary_target: targetEntry.is_primary_target,
+        original_target_index: targetEntry.original_target_index,
+      });
+    }
   }
   return invoked;
 }
@@ -471,6 +522,7 @@ const themeStorageKey = "uiTheme";
 const sidebarCollapsedStorageKey = "sidebarCollapsed";
 const midiInputStorageKey = "midiDeviceId";
 const BACKEND_ECHO_SUPPRESSION_MS = 220;
+const INTEGRATION_ACTIVE_ECHO_SUPPRESSION_MS = 1000;
 const midiOutputStorageKey = "midiOutputDeviceId";
 const midiInputNameStorageKey = "midiDeviceName";
 const midiOutputNameStorageKey = "midiOutputDeviceName";
@@ -2336,6 +2388,14 @@ async function setupListeners() {
 
     // Backend Event Update
     // Similar logic to polling: respect local MIDI updates to prevent jitter
+    const shouldSuppressIntegrationEcho = (slider) => {
+      const bindingId = String(slider?.dataset?.bindingId || "");
+      if (!bindingId) return false;
+      const binding = bindings.find((b) => b && String(b.id) === bindingId);
+      if (!binding || !bindingHasIntegrationTarget(binding)) return false;
+      const lastInteraction = Number(bindingInteractionTimes[bindingId] || 0);
+      return lastInteraction > 0 && (Date.now() - lastInteraction) < INTEGRATION_ACTIVE_ECHO_SUPPRESSION_MS;
+    };
 
     // 1. Direct update if ID available
     if (payload.binding_id) {
@@ -2344,7 +2404,10 @@ async function setupListeners() {
         const lastMidi = Number(s.dataset.lastMidiUpdate || 0);
         // Ignore immediate backend echo briefly so hardware feedback does not
         // fight the active user move, but release control quickly afterward.
-        if (Date.now() - lastMidi > BACKEND_ECHO_SUPPRESSION_MS) {
+        if (
+          Date.now() - lastMidi > BACKEND_ECHO_SUPPRESSION_MS
+          && !shouldSuppressIntegrationEcho(s)
+        ) {
           setBindingSliderVolume(s, payload.volume, { bindingId: payload.binding_id });
         }
       }
@@ -2356,7 +2419,10 @@ async function setupListeners() {
       if (payload.binding_id && slider.dataset.bindingId === payload.binding_id) return;
 
       const lastMidi = Number(slider.dataset.lastMidiUpdate || 0);
-      if (Date.now() - lastMidi > BACKEND_ECHO_SUPPRESSION_MS) {
+      if (
+        Date.now() - lastMidi > BACKEND_ECHO_SUPPRESSION_MS
+        && !shouldSuppressIntegrationEcho(slider)
+      ) {
         try {
           const t = JSON.parse(slider.dataset.targetJson);
           if (targetsMatch(t, payload.target)) {
