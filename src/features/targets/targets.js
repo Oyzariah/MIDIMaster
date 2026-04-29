@@ -141,15 +141,12 @@ export function createTargetsFeature({
   const INTEGRATION_META = {
     obs: {
       description: "Control OBS scenes, sources, and recording actions.",
-      tags: ["Streaming", "Utilities"],
     },
     hue: {
       description: "Control lights, brightness, and color scenes.",
-      tags: ["Lighting"],
     },
     wavelink: {
       description: "Adjust channel levels and mute states.",
-      tags: ["Audio"],
     },
   };
 
@@ -249,10 +246,9 @@ export function createTargetsFeature({
     };
     if (option?.ghost && !option?.suppressUnavailableTag) add("Unavailable");
 
-    const meta = option?.kind === "integration-root"
-      ? INTEGRATION_META[String(option.value || "").toLowerCase()]
-      : null;
-    (option?.tags || meta?.tags || []).forEach(add);
+    if (option?.kind !== "integration-root") {
+      (option?.tags || []).forEach(add);
+    }
     return tags;
   }
 
@@ -421,6 +417,25 @@ export function createTargetsFeature({
       }
 
       item.appendChild(copy);
+
+      if (option.kind === "integration-root" || option.kind === "integration-nav") {
+        const navMeta = document.createElement("span");
+        navMeta.className = "target-card-nav-meta";
+
+        const badge = document.createElement("span");
+        badge.className = "target-card-kind-badge";
+        badge.textContent = "Integration";
+        navMeta.appendChild(badge);
+
+        const arrow = document.createElement("span");
+        arrow.className = "target-card-arrow";
+        arrow.setAttribute("aria-hidden", "true");
+        arrow.textContent = "\u203a";
+        navMeta.appendChild(arrow);
+
+        item.appendChild(navMeta);
+      }
+
       item.classList.toggle(
         "selected",
         option.value === selectedValue && option.kind === selectedKind,

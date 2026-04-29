@@ -2268,10 +2268,19 @@ body[data-theme] .target-category-indicator {
 }
 
 body[data-theme] .target-category-count,
-body[data-theme] .target-card-tag {
+body[data-theme] .target-card-tag,
+body[data-theme] .target-card-kind-badge {
   background: var(--chip-bg);
   border: 1px solid var(--chip-border);
   color: var(--chip-text);
+}
+
+body[data-theme] .target-card-nav-meta {
+  color: var(--text-muted);
+}
+
+body[data-theme] .target-card-arrow {
+  color: var(--text-muted);
 }
 
 body[data-theme] .target-category.active .target-category-count {
