@@ -29,6 +29,8 @@ export function createTargetsFeature({
 
   let activeTargetPanelSelect = null;
   let activeTargetPanelBack = null;
+  let activeTargetPanelIntegrationId = null;
+  let activeTargetPanelRefresh = null;
   const HOTKEY_ICON_DATA = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'><rect x='2' y='4' width='16' height='12' rx='3' fill='%231a2446' stroke='%2398a6cc' stroke-width='1.2'/><rect x='4' y='7' width='2.2' height='2.2' rx='0.6' fill='%23c7d2f3'/><rect x='7' y='7' width='2.2' height='2.2' rx='0.6' fill='%23c7d2f3'/><rect x='10' y='7' width='2.2' height='2.2' rx='0.6' fill='%23c7d2f3'/><rect x='13' y='7' width='2.2' height='2.2' rx='0.6' fill='%23c7d2f3'/><rect x='5.2' y='10.6' width='9.6' height='2.2' rx='0.8' fill='%23c7d2f3'/></svg>";
   const OPEN_APPLICATION_TARGET_ICON_DATA = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'><rect x='2.2' y='3.6' width='15.6' height='12.8' rx='2.2' stroke='%2398a6cc' stroke-width='1.2'/><path d='M6.2 7.3h4.9M6.2 10h7.6M6.2 12.7h5.7' stroke='%23c7d2f3' stroke-width='1.3' stroke-linecap='round'/><path d='M12.3 5.2l2.9 2.9-2.9 2.9' stroke='%238fd5ff' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/></svg>";
   const TOGGLE_MUTE_ICON_DATA = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20' viewBox='0 0 20 20' fill='none'><path d='M3 8.2v3.6h2.6l3.3 2.8V5.4L5.6 8.2H3z' fill='%23c7d2f3'/><path d='M12.4 7.1l4.5 5.8M16.9 7.1l-4.5 5.8' stroke='%23f7a7a7' stroke-width='1.5' stroke-linecap='round'/></svg>";
@@ -328,6 +330,8 @@ export function createTargetsFeature({
     if (categories) categories.innerHTML = "";
     activeTargetPanelSelect = null;
     activeTargetPanelBack = null;
+    activeTargetPanelIntegrationId = null;
+    activeTargetPanelRefresh = null;
 
     if (d.targetPanelBack) {
       d.targetPanelBack.style.display = "none";
@@ -341,6 +345,10 @@ export function createTargetsFeature({
     }
     activeTargetPanelSelect = onSelect;
     activeTargetPanelBack = nav && typeof nav === "object" ? (nav.onBack || null) : null;
+    activeTargetPanelIntegrationId = nav && typeof nav === "object" ? (nav.integrationId || null) : null;
+    activeTargetPanelRefresh = nav && typeof nav === "object" && typeof nav.refresh === "function"
+      ? nav.refresh
+      : null;
     const { searchInput, categories } = targetPanelParts();
     const normalizedOptions = normalizePanelOptions(options);
     let activeCategory = "all";
@@ -840,10 +848,17 @@ export function createTargetsFeature({
       return target?.Integration || target?.integration || null;
     };
 
-    const actionLabel = (action, target = null) => {
-      const integ = integrationFromTarget(target);
-      const persistedActionLabel = String(integ?.data?.action_label || "").trim();
-      if (persistedActionLabel) return persistedActionLabel;
+      const actionLabel = (action, target = null) => {
+        const integ = integrationFromTarget(target);
+        const persistedActionLabel = String(integ?.data?.action_label || "").trim();
+      if (persistedActionLabel) {
+        const display = cachedDisplayForTarget(target);
+        const targetLabel = String(display?.label || "").replace(/\s*\([^()]+\)\s*$/g, "").trim();
+        if (targetLabel && targetLabel.toLowerCase() === persistedActionLabel.toLowerCase()) {
+          return "";
+        }
+        return persistedActionLabel;
+      }
 
       // Check if the integration declares a custom label for this action
       if (integ?.integration_id) {
@@ -862,7 +877,11 @@ export function createTargetsFeature({
       if (action === "ToggleMute") return "Toggle Mute";
       if (action === "SetDefaultDevice") return "Set Default";
       if (action === "OpenApplication") return "Open Application";
-      if (action === "Volume" && isBindingButton) return "Trigger";
+      if (action === "Volume" && isBindingButton) {
+        const targetKind = String(integ?.kind || "").toLowerCase();
+        if (targetKind === "action" || targetKind === "scene") return "";
+        return "Trigger";
+      }
       return action;
     };
 
@@ -914,7 +933,7 @@ export function createTargetsFeature({
         : [];
       renderLabelFromRawWithTags(label, {
         rawLabel: displayOption.label,
-        extraTags: actionTags,
+        extraTags: actionTags.filter(Boolean),
         truncateMain: true,
         collapseTags: false,
       });
@@ -1196,13 +1215,7 @@ export function createTargetsFeature({
             }
 
             if (isBindingButton && targetOption.kind !== "hotkey-target") {
-              const actionOptions = buildButtonActionOptions(targetOption);
-              setTimeout(() => {
-                openTargetPanel(actionOptions, selectedAction, "action", (actionOption) => {
-                  selectOption(targetOption, actionOption);
-                }, "Select Action");
-              }, 10);
-              return false;
+              return chooseButtonTarget(targetOption);
             }
 
             selectOption(targetOption);
@@ -1210,6 +1223,20 @@ export function createTargetsFeature({
           },
           "Select Targets",
         );
+      };
+
+      const chooseButtonTarget = (targetOption) => {
+        const actionOptions = buildButtonActionOptions(targetOption);
+        if (actionOptions.length === 1) {
+          selectOption(targetOption, actionOptions[0]);
+          return true;
+        }
+        setTimeout(() => {
+          openTargetPanel(actionOptions, selectedAction, "action", (actionOption) => {
+            selectOption(targetOption, actionOption);
+          }, "Select Action");
+        }, 10);
+        return false;
       };
 
       const showIntegrationSubmenu = async (integrationId, navStack = [], navState = null) => {
@@ -1300,13 +1327,7 @@ export function createTargetsFeature({
             }
 
             if (isBindingButton) {
-              const actionOptions = buildButtonActionOptions(opt);
-              setTimeout(() => {
-                openTargetPanel(actionOptions, selectedAction, "action", (actionOption) => {
-                  selectOption(opt, actionOption);
-                }, "Select Action");
-              }, 10);
-              return false;
+              return chooseButtonTarget(opt);
             }
 
             selectOption(opt);
@@ -1314,6 +1335,8 @@ export function createTargetsFeature({
           },
           handler?.name ? `Select ${handler.name} Target` : "Select Integration Target",
           {
+            integrationId,
+            refresh: () => showIntegrationSubmenu(integrationId, navStack, navState).catch(() => { }),
             onBack: () => {
               if (navStack.length === 0) {
                 openRootTargetPanel();
@@ -1350,6 +1373,13 @@ export function createTargetsFeature({
     if (d.targetPanelClose) {
       d.targetPanelClose.addEventListener("click", closeTargetPanel);
     }
+    window.addEventListener("midimaster:integration-targets-changed", (event) => {
+      const integrationId = String(event?.detail?.integrationId || event?.detail?.integration_id || "");
+      if (!integrationId || integrationId !== activeTargetPanelIntegrationId) return;
+      if (typeof activeTargetPanelRefresh === "function") {
+        activeTargetPanelRefresh();
+      }
+    });
   }
 
   return {

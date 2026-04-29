@@ -48,6 +48,12 @@ function friendlyAppLabel(name) {
   return base ? base.charAt(0).toUpperCase() + base.slice(1) : raw;
 }
 
+function withUnavailableSuffix(label) {
+  const raw = String(label || "").trim();
+  if (!raw) return "Unavailable";
+  return /\(\s*Unavailable\s*\)\s*$/i.test(raw) ? raw : `${raw} (Unavailable)`;
+}
+
 export function createTargetCore({
   masterIconData,
   focusIconData,
@@ -166,7 +172,10 @@ export function createTargetCore({
           try {
             const desc = handler.describeTarget({ Integration: integration });
             if (desc && desc.label) {
-              return desc;
+              return {
+                ...desc,
+                label: desc.ghost ? withUnavailableSuffix(desc.label) : desc.label,
+              };
             }
           } catch {
             // ignore

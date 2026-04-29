@@ -119,6 +119,7 @@ export async function activate(ctx) {
 
   let inputList = [];
   let sceneList = [];
+  let listRefreshTimer = null;
 
   let knownVolumes = new Map();
   let knownMutes = new Map();
@@ -152,6 +153,41 @@ export async function activate(ctx) {
   function setBindings(next) {
     bindings = Array.isArray(next) ? next : [];
     rebuildBindingIndex();
+  }
+
+  function notifyTargetOptionsChanged() {
+    try {
+      ctx.app?.invalidateBindingsUI?.();
+    } catch {}
+    try {
+      window.dispatchEvent(new CustomEvent("midimaster:integration-targets-changed", {
+        detail: { integrationId: "obs" },
+      }));
+    } catch {}
+  }
+
+  function resetAudioInputDiscovery() {
+    audioInputs = new Set();
+    audioInputsReady = false;
+    audioInputsDiscovering = false;
+  }
+
+  function scheduleListRefresh(reason = "") {
+    if (!connected) return;
+    if (listRefreshTimer) {
+      clearTimeout(listRefreshTimer);
+    }
+    listRefreshTimer = setTimeout(() => {
+      listRefreshTimer = null;
+      (async () => {
+        await refreshLists();
+        resetAudioInputDiscovery();
+        notifyTargetOptionsChanged();
+        await discoverAudioInputs();
+        notifyTargetOptionsChanged();
+        await syncAllFeedback({ silent: true });
+      })().catch(() => {});
+    }, reason === "connected" ? 0 : 250);
   }
 
   function rebuildBindingIndex() {
@@ -475,6 +511,19 @@ export async function activate(ctx) {
   }
 
   async function refreshLists() {
+    const previousInputs = inputList
+      .map((i) => i?.inputName)
+      .filter(Boolean)
+      .map(String)
+      .sort()
+      .join("\n");
+    const previousScenes = sceneList
+      .map((s) => s?.sceneName)
+      .filter(Boolean)
+      .map(String)
+      .sort()
+      .join("\n");
+
     try {
       const inputs = await request("GetInputList");
       inputList = Array.isArray(inputs?.inputs) ? inputs.inputs : [];
@@ -487,6 +536,20 @@ export async function activate(ctx) {
       const cur = await request("GetCurrentProgramScene");
       currentScene = cur?.currentProgramSceneName || null;
     } catch {}
+
+    const nextInputs = inputList
+      .map((i) => i?.inputName)
+      .filter(Boolean)
+      .map(String)
+      .sort()
+      .join("\n");
+    const nextScenes = sceneList
+      .map((s) => s?.sceneName)
+      .filter(Boolean)
+      .map(String)
+      .sort()
+      .join("\n");
+    return previousInputs !== nextInputs || previousScenes !== nextScenes;
   }
 
   async function discoverAudioInputs() {
@@ -564,7 +627,10 @@ export async function activate(ctx) {
         manualConnectRequested = false;
         setStatus(true, "Connected");
         await refreshLists();
+        resetAudioInputDiscovery();
+        notifyTargetOptionsChanged();
         await discoverAudioInputs();
+        notifyTargetOptionsChanged();
         await syncAllFeedback({ silent: true });
         return;
       }
@@ -610,6 +676,18 @@ export async function activate(ctx) {
         if (type === "CurrentProgramSceneChanged") {
           if (data.sceneName != null) currentScene = String(data.sceneName);
         }
+        if (
+          type === "InputCreated"
+          || type === "InputRemoved"
+          || type === "InputNameChanged"
+          || type === "SceneCreated"
+          || type === "SceneRemoved"
+          || type === "SceneNameChanged"
+          || type === "SceneItemCreated"
+          || type === "SceneItemRemoved"
+        ) {
+          scheduleListRefresh(type);
+        }
         return;
       }
 
@@ -637,6 +715,8 @@ export async function activate(ctx) {
       pending.clear();
       pendingVolumeWrites.clear();
       lastSentVolumeByInput.clear();
+      resetAudioInputDiscovery();
+      notifyTargetOptionsChanged();
     };
 
     ws.onerror = () => {
@@ -722,6 +802,10 @@ export async function activate(ctx) {
     },
     getTargetOptions: async (ctx2 = null) => {
       if (!connected) return [];
+      const listChanged = await refreshLists();
+      if (listChanged) {
+        resetAudioInputDiscovery();
+      }
       const controlType = ctx2 && typeof ctx2 === "object" ? ctx2.controlType : null;
       const nav = ctx2 && typeof ctx2 === "object" ? ctx2.nav : null;
       const opts = [];
@@ -729,9 +813,7 @@ export async function activate(ctx) {
       // Faders should only see volume-capable targets.
       if (controlType === "fader") {
         if (!audioInputsReady) {
-          // Kick off discovery if needed.
-          discoverAudioInputs().catch(() => {});
-          return [{ label: "Discovering audio sources...", kind: "placeholder", ghost: true }];
+          await discoverAudioInputs();
         }
         for (const input of inputList) {
           const name = input?.inputName;
