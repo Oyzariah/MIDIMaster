@@ -502,7 +502,7 @@ impl AppState {
                                 })
                                 .map(|s| s.is_muted)
                                 .or(Some(false)),
-                            model::BindingTarget::Application { name } => self
+                            model::BindingTarget::Application { name, .. } => self
                                 .audio
                                 .list_sessions()
                                 .ok()
@@ -514,8 +514,7 @@ impl AppState {
                                             || s.display_name.eq_ignore_ascii_case(name)
                                     })
                                 })
-                                .map(|s| s.is_muted)
-                                .or(Some(false)),
+                                .map(|s| s.is_muted),
                             model::BindingTarget::Device { device_id } => {
                                 let (kind, raw_id) = parse_device_target(device_id);
                                 match kind {
@@ -586,19 +585,37 @@ impl AppState {
                             .audio
                             .focused_session()
                             .map_err(|err| err.to_string())?;
-                        let app_name = if let Some(focused) = focused {
-                            focused
-                                .process_name
-                                .as_deref()
-                                .and_then(|name| name.strip_suffix(".exe").or(Some(name)))
-                                .map(|name| name.trim().to_string())
-                                .filter(|name| !name.is_empty())
-                                .unwrap_or_else(|| focused.display_name.clone())
-                        } else {
-                            focused_application_name().unwrap_or_default()
-                        };
+                        let (app_name, app_display_name, app_icon_data) =
+                            if let Some(focused) = focused {
+                                focused
+                                    .process_name
+                                    .as_deref()
+                                    .and_then(|name| name.strip_suffix(".exe").or(Some(name)))
+                                    .map(|name| name.trim().to_string())
+                                    .filter(|name| !name.is_empty())
+                                    .map(|name| {
+                                        (
+                                            name,
+                                            Some(focused.display_name.clone()),
+                                            focused.icon_data.clone(),
+                                        )
+                                    })
+                                    .unwrap_or_else(|| {
+                                        (
+                                            focused.display_name.clone(),
+                                            Some(focused.display_name.clone()),
+                                            focused.icon_data.clone(),
+                                        )
+                                    })
+                            } else {
+                                (focused_application_name().unwrap_or_default(), None, None)
+                            };
                         if !app_name.is_empty() {
-                            let new_target = model::BindingTarget::Application { name: app_name };
+                            let new_target = model::BindingTarget::Application {
+                                name: app_name,
+                                display_name: app_display_name,
+                                icon_data: app_icon_data,
+                            };
                             let already_present = targets.iter().any(|t| *t == new_target);
                             let should_replace =
                                 matches!(owner.assign_mode, model::AssignMode::Replace);
@@ -721,7 +738,7 @@ impl AppState {
                             model::BindingTarget::Session { session_id } => {
                                 let _ = self.audio.set_session_mute(session_id, next_muted);
                             }
-                            model::BindingTarget::Application { name } => {
+                            model::BindingTarget::Application { name, .. } => {
                                 let _ = self.audio.set_application_mute(name, next_muted);
                             }
                             model::BindingTarget::Device { device_id } => {
@@ -1162,7 +1179,7 @@ impl AppState {
                             any_applied = true;
                         }
                     }
-                    model::BindingTarget::Application { name } => {
+                    model::BindingTarget::Application { name, .. } => {
                         if let Err(err) = self.audio.set_application_mute(name, muted) {
                             run_logger::error(
                                 "bindings",
@@ -1305,7 +1322,7 @@ impl AppState {
                         any_applied = true;
                     }
                 }
-                model::BindingTarget::Application { name } => {
+                model::BindingTarget::Application { name, .. } => {
                     if let Err(err) = self.audio.set_application_volume(name, volume) {
                         run_logger::error(
                             "bindings",
@@ -1467,7 +1484,7 @@ impl AppState {
                         .iter()
                         .find(|session| session.id == *session_id)
                         .map(|session| if session.is_muted { 1.0 } else { 0.0 }),
-                    model::BindingTarget::Application { name } => {
+                    model::BindingTarget::Application { name, .. } => {
                         let target = name.to_lowercase();
                         sessions
                             .iter()
@@ -1528,7 +1545,7 @@ impl AppState {
                             current_target_muted = Some(session.is_muted);
                             session.volume
                         }),
-                    model::BindingTarget::Application { name } => {
+                    model::BindingTarget::Application { name, .. } => {
                         let target = name.to_lowercase();
                         sessions
                             .iter()

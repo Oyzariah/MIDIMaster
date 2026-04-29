@@ -549,7 +549,11 @@ export function createTargetsFeature({
     const recordingDevices = getRecording();
 
     const integration = currentTarget?.Integration || currentTarget?.integration;
-    const selectedAppName = currentTarget?.Application?.name || currentTarget?.application?.name;
+    const selectedAppContainer = currentTarget?.Application || currentTarget?.application;
+    const selectedAppName = selectedAppContainer?.name || selectedAppContainer?.appName;
+    const selectedAppKey = selectedAppName ? String(selectedAppName).toLowerCase() : "";
+    const selectedAppDisplayName = selectedAppContainer?.display_name || selectedAppContainer?.displayName || "";
+    const selectedAppIconData = selectedAppContainer?.icon_data || selectedAppContainer?.iconData || null;
     const sessionContainer = currentTarget?.Session || currentTarget?.session;
     const selectedSessionId = (sessionContainer && typeof sessionContainer === "object")
       ? (sessionContainer.session_id ?? sessionContainer.sessionId)
@@ -578,7 +582,7 @@ export function createTargetsFeature({
 
     let selectedValue = "";
     if (selectedKind === "integration-target") selectedValue = targetKey(integration);
-    else if (selectedKind === "session") selectedValue = selectedAppName || selectedSessionKey || "";
+    else if (selectedKind === "session") selectedValue = selectedAppKey || selectedSessionKey || "";
     else if (selectedKind === "device") selectedValue = selectedDeviceId || "";
     else if (selectedKind === "master" || selectedKind === "focus" || selectedKind === "media-control" || selectedKind === "hotkey-target" || selectedKind === "open-application-target") selectedValue = selectedKind;
     else if (selectedKind === "placeholder") selectedValue = "placeholder";
@@ -651,20 +655,24 @@ export function createTargetsFeature({
         options.push({
           value: key,
           label: session.display_name,
+          display_name: session.display_name,
           icon_data: session.icon_data,
           kind: "session",
         });
       });
     }
 
-    if (selectedAppName && !seen.has(selectedAppName)) {
+    if (selectedAppName && !seen.has(selectedAppKey)) {
       if (sessionsAdded.length === 0) {
         options.push({ kind: "divider", label: "Applications" });
       }
-      const label = selectedAppName.charAt(0).toUpperCase() + selectedAppName.slice(1);
+      const label = selectedAppDisplayName
+        || (selectedAppName.charAt(0).toUpperCase() + selectedAppName.slice(1));
       options.push({
-        value: selectedAppName,
+        value: selectedAppKey,
         label: `${label} (Unavailable)`,
+        display_name: label,
+        icon_data: selectedAppIconData,
         kind: "session",
         ghost: true,
       });
@@ -886,10 +894,18 @@ export function createTargetsFeature({
       return merged;
     };
 
+    const targetLooksUnavailable = (target) => {
+      const displayOption = cachedDisplayForTarget(target);
+      return /\(\s*Unavailable\s*\)\s*$/i.test(String(displayOption?.label || ""));
+    };
+
     const renderChip = (target, index) => {
       const displayOption = cachedDisplayForTarget(target);
       const chip = document.createElement("span");
       chip.className = "target-chip";
+      if (/\(\s*Unavailable\s*\)\s*$/i.test(String(displayOption?.label || ""))) {
+        chip.classList.add("unavailable");
+      }
       chip.dataset.index = String(index);
 
       const icon = createTargetIcon(displayOption);
@@ -991,7 +1007,13 @@ export function createTargetsFeature({
         return { Device: { device_id: option.value } };
       }
       if (option.kind === "session") {
-        return { Application: { name: option.value } };
+        const displayName = String(option.display_name || option.label || "")
+          .replace(/\s*\(Unavailable\)\s*$/i, "")
+          .trim();
+        const app = { name: option.value };
+        if (displayName) app.display_name = displayName;
+        if (option.icon_data) app.icon_data = option.icon_data;
+        return { Application: app };
       }
       if (option.kind === "placeholder") {
         return "Unset";
@@ -1005,7 +1027,8 @@ export function createTargetsFeature({
       container.__openApplication = selectedOpenApplication;
       container.value = selectedTargets.length ? targetIdentity(selectedTargets[0]) : "";
       container.dataset.kind = selectedTargets.length ? "multi" : "placeholder";
-      container.classList.toggle("target-unavailable", Boolean(markUnavailable));
+      const hasUnavailableTarget = selectedTargets.some((target) => targetLooksUnavailable(target));
+      container.classList.toggle("target-unavailable", Boolean(markUnavailable || hasUnavailableTarget));
       container.dataset.action = selectedAction;
       setDisplay();
     };

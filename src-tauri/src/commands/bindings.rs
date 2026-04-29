@@ -226,7 +226,7 @@ fn apply_binding_action_internal(
                     any_applied = true;
                 }
             }
-            (model::BindingAction::Volume, model::BindingTarget::Application { name }) => {
+            (model::BindingAction::Volume, model::BindingTarget::Application { name, .. }) => {
                 if let Err(err) = state.audio.set_application_volume(name, value) {
                     run_logger::warn(
                         "bindings_cmd",
@@ -318,7 +318,7 @@ fn apply_binding_action_internal(
                     any_applied = true;
                 }
             }
-            (model::BindingAction::ToggleMute, model::BindingTarget::Application { name }) => {
+            (model::BindingAction::ToggleMute, model::BindingTarget::Application { name, .. }) => {
                 if let Err(err) = state.audio.set_application_mute(name, value > 0.5) {
                     run_logger::warn(
                         "bindings_cmd",

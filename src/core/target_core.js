@@ -41,6 +41,13 @@ function normalizeSessionKey(session) {
   return session?.display_name?.toLowerCase() || "";
 }
 
+function friendlyAppLabel(name) {
+  const raw = String(name || "").trim();
+  if (!raw) return "Application";
+  const base = raw.split(/[\\/]/).pop().replace(/\.exe$/i, "");
+  return base ? base.charAt(0).toUpperCase() + base.slice(1) : raw;
+}
+
 export function createTargetCore({
   masterIconData,
   focusIconData,
@@ -103,9 +110,16 @@ export function createTargetCore({
 
     if (appName) {
       const session = sessions.find((item) => normalizeSessionKey(item) === appName.toLowerCase());
+      const storedLabel = (typeof appContainer === "object" && appContainer)
+        ? (appContainer.display_name || appContainer.displayName || appContainer.label)
+        : null;
+      const storedIcon = (typeof appContainer === "object" && appContainer)
+        ? (appContainer.icon_data || appContainer.iconData)
+        : null;
+      const label = session?.display_name || storedLabel || friendlyAppLabel(appName);
       return {
-        label: session?.display_name || appName,
-        icon_data: session?.icon_data ?? null,
+        label: session ? label : `${label} (Unavailable)`,
+        icon_data: session?.icon_data ?? storedIcon ?? null,
       };
     }
 

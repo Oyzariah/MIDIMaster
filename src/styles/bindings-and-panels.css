@@ -178,6 +178,14 @@ button:hover {
   filter: grayscale(100%);
 }
 
+.target-chip.unavailable {
+  opacity: 0.78;
+}
+
+.target-chip.unavailable .target-chip-icon {
+  filter: grayscale(100%);
+}
+
 .target-display {
   display: flex;
   align-items: center;

@@ -190,7 +190,7 @@ impl Default for AssignMode {
     }
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq)]
+#[derive(Debug, Clone, Serialize)]
 pub enum BindingTarget {
     Master,
     Focus,
@@ -199,6 +199,10 @@ pub enum BindingTarget {
     },
     Application {
         name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        display_name: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        icon_data: Option<String>,
     },
     Device {
         device_id: String,
@@ -221,6 +225,43 @@ pub enum BindingTarget {
     Hotkey,
     OpenApplication,
     Unset,
+}
+
+impl PartialEq for BindingTarget {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (BindingTarget::Master, BindingTarget::Master)
+            | (BindingTarget::Focus, BindingTarget::Focus)
+            | (BindingTarget::MediaControl, BindingTarget::MediaControl)
+            | (BindingTarget::Hotkey, BindingTarget::Hotkey)
+            | (BindingTarget::OpenApplication, BindingTarget::OpenApplication)
+            | (BindingTarget::Unset, BindingTarget::Unset) => true,
+            (
+                BindingTarget::Session { session_id: a },
+                BindingTarget::Session { session_id: b },
+            ) => a == b,
+            (
+                BindingTarget::Application { name: a, .. },
+                BindingTarget::Application { name: b, .. },
+            ) => a.eq_ignore_ascii_case(b),
+            (BindingTarget::Device { device_id: a }, BindingTarget::Device { device_id: b }) => {
+                a == b
+            }
+            (
+                BindingTarget::Integration {
+                    integration_id: a_id,
+                    kind: a_kind,
+                    data: a_data,
+                },
+                BindingTarget::Integration {
+                    integration_id: b_id,
+                    kind: b_kind,
+                    data: b_data,
+                },
+            ) => a_id == b_id && a_kind == b_kind && a_data == b_data,
+            _ => false,
+        }
+    }
 }
 
 impl Default for BindingTarget {
@@ -308,7 +349,19 @@ fn binding_target_from_value(v: serde_json::Value) -> Result<BindingTarget, Stri
                 .and_then(|v| v.as_str())
                 .ok_or_else(|| "Application.name missing".to_string())?
                 .to_string();
-            Ok(BindingTarget::Application { name })
+            let display_name = val
+                .get("display_name")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            let icon_data = val
+                .get("icon_data")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            Ok(BindingTarget::Application {
+                name,
+                display_name,
+                icon_data,
+            })
         }
         "Device" => {
             let device_id = val
@@ -640,7 +693,47 @@ mod tests {
         assert_eq!(
             binding.targets[1],
             BindingTarget::Application {
-                name: "spotify".to_string()
+                name: "spotify".to_string(),
+                display_name: None,
+                icon_data: None,
+            }
+        );
+    }
+
+    #[test]
+    fn deserialize_application_target_metadata() {
+        let mut json = binding_base_json();
+        json.as_object_mut().unwrap().insert(
+            "targets".to_string(),
+            serde_json::json!([
+                {
+                    "Application": {
+                        "name": "firefox",
+                        "display_name": "Firefox",
+                        "icon_data": "data:image/png;base64,abc"
+                    }
+                }
+            ]),
+        );
+
+        let mut binding: Binding =
+            serde_json::from_value(json).expect("binding should deserialize");
+        binding.ensure_targets();
+
+        assert_eq!(
+            binding.targets[0],
+            BindingTarget::Application {
+                name: "firefox".to_string(),
+                display_name: Some("Firefox".to_string()),
+                icon_data: Some("data:image/png;base64,abc".to_string()),
+            }
+        );
+        assert_eq!(
+            binding.targets[0],
+            BindingTarget::Application {
+                name: "FIREFOX".to_string(),
+                display_name: None,
+                icon_data: None,
             }
         );
     }
