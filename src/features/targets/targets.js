@@ -894,11 +894,6 @@ export function createTargetsFeature({
       return merged;
     };
 
-    const targetLooksUnavailable = (target) => {
-      const displayOption = cachedDisplayForTarget(target);
-      return /\(\s*Unavailable\s*\)\s*$/i.test(String(displayOption?.label || ""));
-    };
-
     const renderChip = (target, index) => {
       const displayOption = cachedDisplayForTarget(target);
       const chip = document.createElement("span");
@@ -1027,8 +1022,7 @@ export function createTargetsFeature({
       container.__openApplication = selectedOpenApplication;
       container.value = selectedTargets.length ? targetIdentity(selectedTargets[0]) : "";
       container.dataset.kind = selectedTargets.length ? "multi" : "placeholder";
-      const hasUnavailableTarget = selectedTargets.some((target) => targetLooksUnavailable(target));
-      container.classList.toggle("target-unavailable", Boolean(markUnavailable || hasUnavailableTarget));
+      container.classList.toggle("target-unavailable", Boolean(markUnavailable && selectedTargets.length <= 1));
       container.dataset.action = selectedAction;
       setDisplay();
     };

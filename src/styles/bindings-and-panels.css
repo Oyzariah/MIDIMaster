@@ -179,10 +179,12 @@ button:hover {
 }
 
 .target-chip.unavailable {
+  color: var(--text-muted);
   opacity: 0.78;
 }
 
 .target-chip.unavailable .target-chip-icon {
+  opacity: 0.65;
   filter: grayscale(100%);
 }
 
