@@ -1,0 +1,343 @@
+/* Final inline plugins page overrides after legacy plugin styles */
+.app-page .connections-panel-content {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel-bg-2);
+  box-shadow: none;
+}
+
+.app-page .connections-panel-body {
+  height: 100%;
+  min-height: 0;
+}
+
+.app-page .connections-sidebar {
+  position: relative;
+  width: 220px;
+  padding: 14px 10px;
+  background: #121820;
+  border-right-color: var(--line);
+}
+
+.app-page .connections-content {
+  background: var(--panel-bg-2);
+  padding: 18px 22px;
+}
+
+body.dark-mode:not([data-theme]) .app-page .connection-item-header,
+body.dark-mode:not([data-theme]) .app-page .plugins-manager-row,
+body.dark-mode:not([data-theme]) .app-page .plugins-store-row,
+body.dark-mode:not([data-theme]) .app-page .connection-description {
+  background: #121820;
+  border-color: var(--line);
+}
+
+body.dark-mode:not([data-theme]) .app-page .connections-nav-item.active {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+/* Final redesign polish: keep this after legacy component rules. */
+body.dark-mode:not([data-theme]) .topbar {
+  background: #11161d;
+  border-bottom-color: #252c35;
+}
+
+body.dark-mode:not([data-theme]) .app-sidebar {
+  background: #0f151c;
+  border-right-color: #252c35;
+}
+
+body.dark-mode:not([data-theme]) main {
+  background: #0b1017;
+}
+
+.sidebar-nav-item .nav-icon,
+.topbar-icon-button,
+.binding-add-button,
+.binding-search-field,
+.binding-filter-button,
+.binding-action {
+  color: inherit;
+}
+
+.sidebar-nav-item .nav-icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 24px;
+}
+
+.sidebar-nav-item svg,
+.topbar-icon-button svg,
+.binding-add-button svg,
+.binding-search-field svg,
+.binding-filter-button svg,
+.binding-action svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: 0 0 auto;
+}
+
+body.dark-mode:not([data-theme]) .sidebar-nav-item {
+  color: #c7d0dc;
+}
+
+body.dark-mode:not([data-theme]) .sidebar-nav-item .nav-icon {
+  color: #aeb8c5;
+}
+
+body.dark-mode:not([data-theme]) .sidebar-nav-item.active {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: #ffffff;
+}
+
+body.dark-mode:not([data-theme]) .sidebar-nav-item.active .nav-icon {
+  color: var(--accent-strong);
+}
+
+body.dark-mode:not([data-theme]) .topbar-icon-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #aeb8c5;
+}
+
+body.dark-mode:not([data-theme]) .topbar-icon-button:hover {
+  background: #151c25;
+  border-color: #303945;
+  color: #edf3fa;
+}
+
+.page-heading-row {
+  align-items: center;
+  gap: 18px;
+}
+
+.bindings-toolbar {
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 16px;
+}
+
+body.dark-mode:not([data-theme]) .binding-add-button,
+body.dark-mode:not([data-theme]) .binding-filter-button,
+body.dark-mode:not([data-theme]) .binding-search-field {
+  height: 42px;
+  border: 1px solid #303945;
+  border-radius: 4px;
+  background: #111820;
+  box-shadow: none;
+}
+
+body.dark-mode:not([data-theme]) .binding-add-button {
+  width: auto;
+  min-width: 154px;
+  justify-content: center;
+  color: var(--accent-strong);
+  font-size: 16px;
+  font-weight: 500;
+  padding: 0 18px;
+}
+
+body.dark-mode:not([data-theme]) .binding-add-button:hover {
+  background: #162130;
+  border-color: #3b4756;
+  color: #8fc6ff;
+}
+
+body.dark-mode:not([data-theme]) .binding-search-field {
+  width: 276px;
+  min-width: 276px;
+  color: #8a94a1;
+  padding: 0 14px;
+}
+
+body.dark-mode:not([data-theme]) .binding-search-field input {
+  background: transparent;
+  color: #dce4ed;
+  font-size: 16px;
+  padding: 0;
+}
+
+body.dark-mode:not([data-theme]) .binding-search-field input::placeholder {
+  color: #8d96a3;
+}
+
+body.dark-mode:not([data-theme]) .binding-filter-button {
+  min-width: 150px;
+  justify-content: center;
+  color: #d3dbe5;
+  padding: 0 16px;
+}
+
+body.dark-mode:not([data-theme]) .binding-filter-button:disabled {
+  opacity: 1;
+  color: #d3dbe5;
+  background: #111820;
+}
+
+body.dark-mode:not([data-theme]) .bindings-card {
+  background: #151b23;
+  border-color: #2b333d;
+}
+
+body.dark-mode:not([data-theme]) .binding-headers,
+body.dark-mode:not([data-theme]) .binding-row {
+  border-color: #2b333d;
+}
+
+body.dark-mode:not([data-theme]) .binding-row {
+  background: #171e26;
+}
+
+body.dark-mode:not([data-theme]) .binding-row:hover {
+  background: #1b232d;
+}
+
+body.dark-mode:not([data-theme]) .binding-row .target-button {
+  border-color: #323d49;
+  background: #111820;
+}
+
+.mode-chip .target-tag,
+.mode-chip .mode-chip-icon {
+  display: none;
+}
+
+.mode-chip {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  min-height: 0;
+}
+
+.mode-chip .target-label-content {
+  gap: 0;
+}
+
+body.dark-mode:not([data-theme]) .binding-action {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: #aeb8c5;
+}
+
+body.dark-mode:not([data-theme]) .binding-action:hover {
+  background: #202a35;
+  color: #edf3fa;
+}
+
+body.dark-mode:not([data-theme]) .binding-action.delete {
+  color: #ff5a5f;
+}
+
+body.dark-mode:not([data-theme]) .binding-action.delete:hover {
+  background: rgba(255, 90, 95, 0.12);
+  color: #ff787c;
+}
+
+.binding-action svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.9;
+}
+
+.binding-volume-slider {
+  accent-color: var(--accent);
+}
+
+.binding-volume-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #dbe2ea;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.binding-volume-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 0;
+  border-radius: 999px;
+  background: #dbe2ea;
+}
+
+.topbar .midi-device-dropdown .target-button .target-display::after {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--text-muted);
+  box-shadow: none;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.topbar .midi-device-dropdown.device-connected .target-button .target-display::after {
+  background: var(--success);
+  box-shadow: 0 0 0 2px rgba(82, 211, 128, 0.08);
+}
+
+.topbar .midi-device-dropdown.device-unavailable .target-button .target-display::after {
+  background: var(--danger);
+  box-shadow: 0 0 0 2px rgba(244, 90, 112, 0.1);
+}
+
+.topbar .midi-device-dropdown .target-button .target-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.topbar .midi-device-dropdown .target-button .target-label,
+.topbar .midi-device-dropdown .target-button .target-label-content,
+.topbar .midi-device-dropdown .target-button .target-label-main,
+.profile-select .select-button #profile-current {
+  min-width: 0;
+}
+
+.topbar .midi-device-dropdown .target-button .target-label-content,
+.profile-select .select-button #profile-current {
+  overflow: hidden;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.topbar .midi-device-dropdown .target-button .target-label-content::-webkit-scrollbar,
+.profile-select .select-button #profile-current::-webkit-scrollbar {
+  display: none;
+}
+
+.topbar .midi-device-dropdown .target-button .target-label-main,
+.profile-select .select-button #profile-current {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar .midi-device-dropdown .target-button {
+  background: #111820;
+  border-color: #303945;
+}
+

@@ -1,0 +1,115 @@
+/* Legacy support for old class name */
+.settings-button {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.settings-button:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.app-logo {
+  width: 60px;
+  height: 60px;
+  display: block;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  object-fit: contain;
+}
+
+.app-name {
+  font-size: 26px;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  text-shadow: -1px 0 #1b2033, 0 1px #1b2033, 1px 0 #1b2033, 0 -1px #1b2033;
+}
+
+.app-name-strong {
+  font-weight: 800;
+}
+
+.app-name-light {
+  font-weight: 600;
+}
+
+h2 {
+  margin: 0 0 10px;
+}
+
+main {
+  padding: 12px 12px 28px;
+  max-width: none;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow: hidden;
+}
+
+.main-top {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+  width: 100%;
+}
+
+.main-top .card {
+  height: 100%;
+  padding: 10px 14px;
+}
+
+.device-row {
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.device-picker-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.device-picker-grid .form-group {
+  min-width: 0;
+}
+
+.device-picker-grid .form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.device-picker-grid .form-group select {
+  width: 100%;
+}
+
+.main-top .row {
+  margin-bottom: 4px;
+}
+
+.main-top+.card {
+  margin-top: 0;
+}
+
+#main-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+

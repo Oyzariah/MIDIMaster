@@ -1,8 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod app_paths;
-mod app_state;
 mod app_settings;
+mod app_state;
 mod audio;
 mod bindings;
 mod commands;
@@ -10,9 +10,9 @@ mod device_target;
 mod midi;
 mod model;
 mod monitors;
+mod osd_window;
 mod plugin_api;
 mod profile_store;
-mod osd_window;
 mod run_logger;
 mod runtime_helpers;
 mod runtime_midi;
@@ -22,8 +22,8 @@ mod windows_display;
 mod ws_bridge;
 
 use app_paths::app_data_root_dir;
-pub(crate) use app_state::AppState;
 use app_settings::AppSettingsStore;
+pub(crate) use app_state::AppState;
 use audio::AudioBackend;
 use bindings::BindingKey;
 use commands::*;
@@ -575,6 +575,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            frontend_log,
             list_midi_devices,
             list_midi_output_devices,
             start_midi_device,

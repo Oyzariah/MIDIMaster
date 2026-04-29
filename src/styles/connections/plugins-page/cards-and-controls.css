@@ -1,0 +1,602 @@
+  align-items: flex-end;
+  gap: 8px;
+  justify-content: space-between;
+  min-height: 100%;
+  width: 144px;
+  min-width: 144px;
+}
+
+#plugins-page .plugins-browser-card-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 32px;
+  width: 100%;
+  align-self: stretch;
+}
+
+#plugins-page .plugins-browser-action-spacer {
+  width: 96px;
+  min-width: 96px;
+  height: 32px;
+  min-height: 32px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#plugins-page .plugins-browser-toggle {
+  margin-top: 2px;
+}
+
+#plugins-page .plugins-browser-toggle-spacer {
+  width: 44px;
+  height: 24px;
+  min-height: 24px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+#plugins-page .plugins-browser-empty {
+  padding: 30px 18px;
+  border-radius: 5px;
+  border: 1px dashed var(--control-border);
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-align: center;
+}
+
+#plugins-page .plugins-browser-footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--control-border);
+  color: var(--text-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+#plugins-page .plugins-custom-shell {
+  padding: 2px 0;
+}
+
+#plugins-page .plugins-custom-content {
+  padding: 6px 2px 0;
+}
+
+#plugins-page .plugins-custom-content > *:first-child {
+  margin-top: 0;
+}
+
+@media (max-width: 1080px) {
+  #plugins-page .connections-panel-body {
+    grid-template-columns: 190px minmax(0, 1fr);
+  }
+
+  #plugins-page .plugins-browser-card {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  #plugins-page .plugins-browser-card-actions {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 820px) {
+  #plugins-page .connections-panel-body {
+    grid-template-columns: 1fr;
+  }
+
+  #plugins-page .connections-sidebar {
+    padding: 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--control-border);
+  }
+
+  #plugins-page .connections-nav-group {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  #plugins-page .connections-nav-group-title {
+    width: 100%;
+    padding-left: 2px;
+  }
+
+  #plugins-page .connections-nav-item {
+    width: auto;
+    min-width: 160px;
+    flex: 1 1 160px;
+  }
+
+  #plugins-page .connections-content {
+    padding: 16px;
+  }
+
+  #plugins-page .plugins-browser-toolbar {
+    align-items: stretch;
+  }
+
+  #plugins-page .plugins-browser-search,
+  #plugins-page .plugins-browser-toolbar-actions {
+    width: 100%;
+  }
+
+  #plugins-page .plugins-browser-toolbar-actions {
+    justify-content: stretch;
+  }
+
+  #plugins-page .plugins-browser-sort-wrap,
+  #plugins-page .plugins-browser-install {
+    flex: 1 1 100%;
+  }
+
+  #plugins-page .plugins-browser-sort {
+    width: 100%;
+  }
+
+  #plugins-page .plugins-browser-card {
+    grid-template-columns: 1fr;
+  }
+
+  #plugins-page .plugins-browser-card-media {
+    justify-content: flex-start;
+  }
+}
+
+body[data-theme] .target-divider,
+body[data-theme] .binding-config-title,
+body[data-theme] .alert-panel-body p,
+body[data-theme] .learn-panel-body {
+  color: var(--text-secondary);
+}
+
+body[data-theme] .target-panel .target-option {
+  background: var(--control-bg);
+  border-color: transparent;
+  color: var(--text-primary);
+  box-shadow: none;
+}
+
+body[data-theme] .target-panel .target-option:hover:not(:disabled) {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border);
+}
+
+body[data-theme] .target-panel .target-option.selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+body[data-theme] .target-panel .target-option.selected:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--accent-strong);
+}
+
+body[data-theme] .target-panel .target-option:disabled,
+body[data-theme] .target-panel .target-option.unavailable {
+  background: var(--surface-muted);
+  border-color: transparent;
+  color: var(--text-muted);
+}
+
+body[data-theme] .target-panel .target-label,
+body[data-theme] .target-panel .target-label-main {
+  color: inherit;
+}
+
+body[data-theme] .target-panel .target-tag,
+body[data-theme] .target-panel .target-badge {
+  background: var(--chip-bg);
+  border-color: var(--chip-border);
+  color: var(--chip-text);
+}
+
+body[data-theme] .target-panel .target-option.selected .target-tag,
+body[data-theme] .target-panel .target-option.selected .target-badge {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+body[data-theme] .binding-config-row input[type="text"],
+body[data-theme] .binding-config-label,
+body[data-theme] .binding-config-mode-trigger,
+body[data-theme] .binding-config-mode-option,
+body[data-theme] .binding-config-row .midi-device-dropdown .target-button,
+body[data-theme] .binding-config-actions button,
+body[data-theme] .binding-config-button,
+body[data-theme] .binding-config-custom-editor,
+body[data-theme] .binding-config-custom-surface,
+body[data-theme] .binding-config-preview-summary-value,
+body[data-theme] .learn-panel-actions button,
+body[data-theme] .alert-panel-actions button,
+body[data-theme] .alert-panel-actions .secondary {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .binding-config-row input[type="text"]:focus,
+body[data-theme] .binding-config-mode-trigger:hover,
+body[data-theme] .binding-config-mode-option:hover,
+body[data-theme] .binding-config-row .midi-device-dropdown .target-button:hover,
+body[data-theme] .binding-config-actions button:hover,
+body[data-theme] .binding-config-button:hover,
+body[data-theme] .learn-panel-actions button:hover,
+body[data-theme] .alert-panel-actions button:hover,
+body[data-theme] .alert-panel-actions .secondary:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border-strong);
+}
+
+body[data-theme] .alert-panel-actions .danger-button {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+body[data-theme] .alert-panel-actions .danger-button:hover {
+  background: color-mix(in srgb, var(--danger-soft) 86%, var(--surface) 14%);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+body[data-theme] .learn-panel-actions,
+body[data-theme] .alert-panel-actions {
+  justify-content: center;
+}
+
+body[data-theme] .learn-panel-actions button,
+body[data-theme] .alert-panel-actions button {
+  min-width: 160px;
+}
+
+body[data-theme] .learn-panel-actions .secondary,
+body[data-theme] .alert-panel-actions .secondary {
+  min-width: 128px;
+}
+
+body[data-theme] .binding-config-inline-badge,
+body[data-theme] .binding-config-mode-option.is-selected,
+body[data-theme] .binding-config-row .midi-device-dropdown .target-option.selected,
+body[data-theme] .binding-config-preview-tag {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+body[data-theme] .binding-config-mode-menu,
+body[data-theme] .binding-config-row .midi-device-dropdown .target-menu {
+  background: var(--surface-raised);
+  border-color: var(--control-border);
+  box-shadow: var(--shadow-raised);
+}
+
+body[data-theme] .binding-config-section,
+body[data-theme] .binding-config-preview-shell,
+body[data-theme] .binding-config-preview-stage,
+body[data-theme] .binding-config-preview-track,
+body[data-theme] .binding-config-preview-learn-shell {
+  border-color: var(--control-border);
+}
+
+body[data-theme] .binding-config-curve-card {
+  border-color: var(--control-border);
+  color: var(--text-primary);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-muted) 70%, var(--surface-raised)) 0%, var(--surface) 100%);
+}
+
+body[data-theme] .binding-config-curve-card.is-selected {
+  border-color: var(--accent);
+}
+
+body[data-theme] .binding-config-content {
+  background: var(--surface-raised);
+  border-color: var(--control-border);
+}
+
+body[data-theme] .binding-config-section,
+body[data-theme] .binding-config-preview-shell {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface) 88%, var(--surface-raised)) 0%, var(--surface) 100%);
+}
+
+body[data-theme] .binding-config-preview-learn-shell,
+body[data-theme] .binding-config-preview-stage {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-subtle) 82%, var(--surface-raised)) 0%, var(--surface) 100%);
+}
+
+body[data-theme] .binding-config-preview-track,
+body[data-theme] .binding-config-preview-summary-value,
+body[data-theme] .binding-config-label {
+  background: var(--control-bg);
+}
+
+body[data-theme] .binding-config-preview-fill {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 76%, white) 0%, var(--accent) 100%);
+  box-shadow: none;
+}
+
+body[data-theme] .binding-config-preview-thumb {
+  background: linear-gradient(180deg, var(--surface-raised) 0%, var(--surface-muted) 100%);
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--control-border));
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+body[data-theme] .binding-config-button--primary {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--control-border));
+  color: var(--accent-strong);
+}
+
+body[data-theme] .binding-config-button--primary:hover {
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface-raised) 30%);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+body[data-theme] #binding-config-mute-learn,
+body[data-theme] #binding-config-assign-learn {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 44%, var(--control-border));
+  color: var(--accent-strong);
+}
+
+body[data-theme] #binding-config-mute-learn:hover,
+body[data-theme] #binding-config-assign-learn:hover {
+  background: color-mix(in srgb, var(--accent-soft) 70%, var(--surface-raised) 30%);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+body[data-theme] .binding-config-button--secondary {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .binding-config-button--secondary:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border-strong);
+}
+
+body[data-theme] .binding-config-title,
+body[data-theme] .binding-config-custom-title,
+body[data-theme] .binding-config-preview-target-label,
+body[data-theme] .binding-config-preview-summary-value,
+body[data-theme] .binding-config-preview-value {
+  color: var(--text-primary);
+}
+
+body[data-theme] .binding-config-curve-help,
+body[data-theme] .binding-config-preview-status,
+body[data-theme] .binding-config-preview-learn-indicator,
+body[data-theme] .binding-config-preview-summary-label,
+body[data-theme] .binding-config-info-pill {
+  color: var(--text-secondary);
+}
+
+body[data-theme="light"] .binding-config-preview-target-icon img {
+  filter: none;
+}
+
+body[data-theme="light"] .binding-config-preview-target-icon {
+  background: color-mix(in srgb, white 86%, var(--surface-raised) 14%);
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--control-border));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+body[data-theme] .binding-row,
+body[data-theme] .list-item.binding-item {
+  background: var(--surface);
+  border-color: var(--control-border);
+  box-shadow: none;
+}
+
+body[data-theme] .binding-row:hover,
+body[data-theme] .list-item.binding-item:hover {
+  background: var(--surface-muted);
+}
+
+body[data-theme] .binding-name,
+body[data-theme] .binding-name-input,
+body[data-theme] .binding-control-cell,
+body[data-theme] .mode-dropdown .target-button,
+body[data-theme] .binding-row .target-button,
+body[data-theme] .dropdown-item,
+body[data-theme] .dropdown-item button,
+body[data-theme] .dropdown-item button:first-child {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .dropdown-item:hover,
+body[data-theme] .dropdown-item button:hover,
+body[data-theme] .dropdown-item button:first-child:hover,
+body[data-theme] .mode-dropdown .target-button:hover,
+body[data-theme] .binding-row .target-button:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border-strong);
+  color: var(--text-primary);
+}
+
+body[data-theme] .dropdown-item.confirming,
+body[data-theme] .dropdown-item button.delete.confirm {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+body[data-theme] * {
+  scrollbar-color: var(--control-border-strong) var(--surface-raised);
+}
+
+body[data-theme] *::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+body[data-theme] *::-webkit-scrollbar-track {
+  background: var(--surface-raised);
+  border-radius: 10px;
+}
+
+body[data-theme] *::-webkit-scrollbar-thumb {
+  background: var(--control-border-strong);
+  border: 2px solid var(--surface-raised);
+  border-radius: 10px;
+}
+
+body[data-theme] *::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+body[data-theme] *::-webkit-scrollbar-corner {
+  background: var(--surface-raised);
+}
+
+body[data-theme] .osd-position-picker {
+  background: var(--surface-subtle);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-soft);
+}
+
+body[data-theme] .osd-position-dot {
+  background: var(--surface-muted);
+  border-color: var(--control-border-strong);
+  box-shadow: none;
+}
+
+body[data-theme] .osd-position-dot.selected {
+  background: var(--text-primary);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+body[data-theme] .bindings-empty,
+body[data-theme] .profile-page-empty,
+body[data-theme] .plugins-store-empty,
+body[data-theme] .plugins-manager-loading {
+  background: var(--surface-raised);
+  border-color: var(--control-border);
+  color: var(--text-muted);
+}
+
+body[data-theme] .binding-placeholder,
+body[data-theme] .binding-ghost {
+  background: var(--surface-muted);
+  border-color: var(--control-border-strong);
+  box-shadow: var(--shadow-raised);
+}
+
+body[data-theme] .profile-page-row {
+  background: var(--surface-raised);
+  border-color: var(--control-border);
+}
+
+body[data-theme] .profile-page-row.active {
+  border-color: var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+body[data-theme] .profile-page-name {
+  color: var(--text-primary);
+}
+
+body[data-theme] .profile-page-meta {
+  color: var(--text-muted);
+}
+
+body[data-theme] .profile-select .dropdown,
+body[data-theme] .target-dropdown .target-menu,
+body[data-theme] .dropdown {
+  background: var(--surface-raised);
+  border-color: var(--control-border);
+  box-shadow: var(--shadow-raised);
+}
+
+body[data-theme] .profile-select .dropdown-item.create input {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .dropdown-item button.icon-action,
+body[data-theme] .profile-select .dropdown-item button.icon-action {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-secondary);
+}
+
+body[data-theme] .dropdown-item button.icon-action:hover,
+body[data-theme] .profile-select .dropdown-item button.icon-action:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border-strong);
+  color: var(--text-primary);
+}
+
+body[data-theme] .binding-add-button,
+body[data-theme] .binding-filter-button,
+body[data-theme] .binding-search-field,
+body[data-theme] .topbar .midi-device-dropdown .target-button,
+body[data-theme] .profile-select .select-button {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .binding-add-button {
+  color: var(--accent);
+}
+
+body[data-theme] .binding-add-button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: 2px;
+}
+
+body[data-theme] .binding-add-button:hover,
+body[data-theme] .binding-filter-button:hover,
+body[data-theme] .binding-search-field:focus-within,
+body[data-theme] .topbar .midi-device-dropdown .target-button:hover,
+body[data-theme] .profile-select .select-button:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border-strong);
+}
+
+body[data-theme] .topbar {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 1fr)
+    1px
+    minmax(250px, 1fr)
+    minmax(250px, 1fr)
+    1px
+    auto;
+  align-items: center;
+  gap: 14px;
+  padding-left: 40px;
+}
+
+body[data-theme] .topbar-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+body[data-theme] .profile-select,
+body[data-theme] .topbar .midi-device-dropdown {
+  width: 100%;
+  min-width: 0;
+}
+
+body[data-theme] .topbar-icon-button {
+  margin-left: 0;
+}
+

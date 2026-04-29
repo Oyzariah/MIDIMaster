@@ -1,0 +1,402 @@
+body[data-theme] .settings-panel-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+body[data-theme] .settings-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(316px, 1fr) minmax(224px, 1fr);
+  gap: 22px;
+  align-items: stretch;
+  align-content: stretch;
+}
+
+body[data-theme] .app-page.hidden {
+  display: none !important;
+}
+
+body[data-theme] .settings-column {
+  display: contents;
+}
+
+body[data-theme] .settings-section {
+  display: grid;
+  gap: 14px;
+  height: 100%;
+  padding: 20px 28px;
+  border-radius: 5px;
+  background: var(--surface-raised);
+  border: 1px solid var(--control-border);
+  box-shadow: 0 10px 22px rgba(57, 78, 104, 0.10);
+  align-content: start;
+}
+
+body[data-theme] .settings-general-section {
+  min-height: 0;
+}
+
+body[data-theme] .settings-osd-section {
+  min-height: 0;
+  grid-template-rows: auto auto auto auto;
+}
+
+body[data-theme] .settings-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 28px;
+}
+
+body[data-theme] .settings-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+body[data-theme] .settings-section-header .settings-title {
+  margin: 0;
+}
+
+body[data-theme] .settings-toggle {
+  width: 44px;
+  min-width: 44px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  gap: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+body[data-theme] .settings-toggle input {
+  position: absolute;
+  inset: 0;
+  width: 44px;
+  height: 24px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  appearance: none;
+}
+
+body[data-theme] .settings-toggle .plugins-toggle-ui {
+  width: 44px;
+  height: 24px;
+  flex: 0 0 44px;
+  margin: 0;
+}
+
+body[data-theme] .settings-toggle .plugins-toggle-ui::after {
+  width: 18px;
+  height: 18px;
+}
+
+body[data-theme] .settings-toggle input:checked + .plugins-toggle-ui {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+body[data-theme] .settings-toggle input:checked + .plugins-toggle-ui::after {
+  background: var(--accent);
+  transform: translate(20px, -50%);
+}
+
+body[data-theme] .settings-toggle input:focus-visible + .plugins-toggle-ui {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+body[data-theme] .settings-field-row {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+}
+
+body[data-theme] .settings-general-section .settings-field-row {
+  grid-template-columns: 182px minmax(0, 1fr);
+}
+
+body[data-theme] .settings-field-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+body[data-theme] .settings-field-row .target-dropdown,
+body[data-theme] .settings-field-row select {
+  width: 100%;
+  max-width: none;
+}
+
+body[data-theme] .settings-general-section .settings-field-row .target-dropdown,
+body[data-theme] .settings-general-section .settings-field-row select {
+  max-width: none;
+}
+
+body[data-theme] .settings-field-row--position {
+  align-items: start;
+  grid-template-columns: 160px minmax(0, 1fr);
+}
+
+body[data-theme] .settings-field-row--position .osd-position-picker {
+  width: 100%;
+  max-width: none;
+  height: 144px;
+  aspect-ratio: auto;
+}
+
+body[data-theme] .settings-field-help {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+body[data-theme] .settings-field-row--position .settings-field-help {
+  grid-column: 2;
+  justify-self: center;
+  width: min(100%, 260px);
+  max-width: 260px;
+  text-align: center;
+  padding-bottom: 10px;
+}
+
+body[data-theme] .settings-bottom-grid {
+  display: contents;
+}
+
+body[data-theme] .settings-osd-section {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+body[data-theme] .settings-general-section {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+body[data-theme] .settings-maintenance-section {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+body[data-theme] .settings-updates-section {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+body[data-theme] .settings-maintenance-section,
+body[data-theme] .settings-updates-section {
+  margin-top: 0 !important;
+  min-height: 0;
+}
+
+body[data-theme] #settings-update-status {
+  min-height: 0;
+  align-items: flex-start;
+}
+
+body[data-theme] .settings-maintenance-section .settings-action,
+body[data-theme] .settings-maintenance-section .settings-reset,
+body[data-theme] .settings-updates-section .settings-action {
+  width: 100%;
+  max-width: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+body[data-theme] .settings-button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: inherit;
+  flex: 0 0 auto;
+}
+
+body[data-theme] .settings-button-icon svg,
+body[data-theme] .sidebar-footer-icon svg,
+body[data-theme] .settings-status-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body[data-theme] .settings-button-label {
+  min-width: 0;
+}
+
+body[data-theme] .settings-action {
+  justify-content: center;
+}
+
+body[data-theme] .settings-maintenance-section .settings-action {
+  justify-content: flex-start;
+}
+
+body[data-theme] .settings-reset {
+  justify-content: flex-start;
+  background: var(--danger-soft);
+  border-color: color-mix(in srgb, var(--danger) 88%, var(--control-border));
+  color: color-mix(in srgb, var(--danger) 88%, white 12%);
+}
+
+body[data-theme] .settings-reset:hover {
+  background: color-mix(in srgb, var(--danger-soft) 70%, var(--danger) 30%);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+body[data-theme] .settings-maintenance-section .settings-field-help {
+  grid-column: auto;
+  margin-top: 0;
+}
+
+body[data-theme] .settings-mini-toggle {
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+body[data-theme] .settings-mini-toggle[data-enabled="true"] {
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface-raised));
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--control-border));
+  color: var(--text-primary);
+}
+
+body[data-theme] .settings-update-meta-row {
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  font-size: 13px;
+  align-items: center;
+}
+
+body[data-theme] .settings-update-meta-label {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+body[data-theme] .settings-inline-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+body[data-theme] .settings-status-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--success);
+  flex: 0 0 auto;
+  opacity: 0;
+  width: 0;
+  overflow: hidden;
+  transition: opacity 120ms ease, width 120ms ease;
+}
+
+body[data-theme] .settings-status-text {
+  display: block;
+}
+
+body[data-theme] .settings-inline-status.success {
+  color: var(--success);
+}
+
+body[data-theme] .settings-inline-status.success .settings-status-icon {
+  opacity: 1;
+  width: 20px;
+}
+
+body[data-theme] .settings-inline-status.error {
+  color: var(--danger);
+}
+
+body[data-theme] .settings-updates-section .settings-action {
+  margin-top: auto;
+}
+
+body[data-theme] .settings-monitor-dropdown .target-button,
+body[data-theme] .settings-select-dropdown .target-button,
+body[data-theme] .settings-field-row select {
+  min-height: 40px;
+  border-radius: 8px;
+}
+
+body[data-theme] .settings-osd-section .target-tag {
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+body[data-theme] .hue-actions .connection-button[data-role="pair-action"] {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+@media (max-width: 980px) {
+  body[data-theme] .settings-grid,
+  body[data-theme] .settings-bottom-grid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  body[data-theme] .settings-osd-section,
+  body[data-theme] .settings-general-section,
+  body[data-theme] .settings-maintenance-section,
+  body[data-theme] .settings-updates-section {
+    grid-column: auto;
+    grid-row: auto;
+    height: auto;
+  }
+
+  body[data-theme] .settings-field-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  body[data-theme] .settings-field-help {
+    grid-column: auto;
+  }
+}
+

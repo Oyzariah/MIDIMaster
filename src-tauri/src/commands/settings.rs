@@ -22,6 +22,28 @@ pub struct PickExecutableResult {
 }
 
 #[tauri::command]
+pub fn frontend_log(level: String, component: String, event: String, details: String) {
+    const MAX_DETAILS_LEN: usize = 4096;
+    let component = capped_field(&component, 64);
+    let event = capped_field(&event, 96);
+    let details = capped_field(&details, MAX_DETAILS_LEN);
+    match level.trim().to_ascii_lowercase().as_str() {
+        "debug" => run_logger::debug(&component, &event, &details),
+        "warn" | "warning" => run_logger::warn(&component, &event, &details),
+        "error" => run_logger::error(&component, &event, &details),
+        _ => run_logger::info(&component, &event, &details),
+    }
+}
+
+fn capped_field(value: &str, max_chars: usize) -> String {
+    let mut output: String = value.chars().take(max_chars).collect();
+    if value.chars().count() > max_chars {
+        output.push_str("...");
+    }
+    output
+}
+
+#[tauri::command]
 pub fn list_monitors(app: AppHandle) -> Result<Vec<MonitorInfo>, String> {
     let monitors = collect_monitor_descriptors(&app)?;
     Ok(monitors

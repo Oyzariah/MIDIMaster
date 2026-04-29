@@ -5,6 +5,14 @@ import {
   createSelectDropdownShell,
   renderNativeSelectDropdown,
 } from "../ui/dropdown_select.js";
+import {
+  findConnectedAliveDevice,
+  findDeviceMatch,
+  findPreferredDevice,
+  normalizeMidiPreference,
+  stripUnavailableSuffix,
+  unavailableDeviceLabel,
+} from "./device_preferences.js";
 
 export function createMidiFeature({
   invoke,
@@ -45,16 +53,6 @@ export function createMidiFeature({
   let outputDisplayEl = null;
   let deviceDocClickBound = false;
 
-  function normalizeMidiPreference(source) {
-    const current = (source && typeof source === "object") ? source : {};
-    return {
-      inputDeviceId: String(current.inputDeviceId || current.input_device_id || "").trim(),
-      outputDeviceId: String(current.outputDeviceId || current.output_device_id || "").trim(),
-      inputDeviceName: String(current.inputDeviceName || current.input_device_name || "").trim(),
-      outputDeviceName: String(current.outputDeviceName || current.output_device_name || "").trim(),
-    };
-  }
-
   function setConnectedState(inputId, outputId, inputName = "", outputName = "") {
     connectedInputId = String(inputId || "");
     connectedOutputId = String(outputId || "");
@@ -69,53 +67,6 @@ export function createMidiFeature({
       inputDeviceName: connectedInputName,
       outputDeviceName: connectedOutputName,
     };
-  }
-
-  function findDeviceMatch(devices, deviceId, deviceName) {
-    const list = Array.isArray(devices) ? devices : [];
-    const byId = deviceId ? list.find((device) => device.id === deviceId) : null;
-    if (byId) return byId;
-    if (!deviceName) return null;
-    return list.find((device) => device.name === deviceName) || null;
-  }
-
-  // MIDI IDs can be index-based and may shift after unplug/replug.
-  // Prefer an exact id+name match when both are known; otherwise use name fallback
-  // and DO NOT fall back to id-only when a saved name is present (can bind to wrong device).
-  function findPreferredDevice(devices, deviceId, deviceName) {
-    const list = Array.isArray(devices) ? devices : [];
-    const hasId = Boolean(deviceId);
-    const hasName = Boolean(deviceName);
-    const byId = hasId ? list.find((device) => device.id === deviceId) : null;
-    const byName = hasName ? list.find((device) => device.name === deviceName) : null;
-
-    if (hasId && hasName) {
-      const exact = list.find((device) => device.id === deviceId && device.name === deviceName);
-      if (exact) return exact;
-      if (byName) return byName;
-      return null;
-    }
-
-    return byId || byName || null;
-  }
-
-  function findConnectedAliveDevice(devices, expectedId, expectedName) {
-    const list = Array.isArray(devices) ? devices : [];
-    if (!expectedId && !expectedName) return null;
-    if (expectedId && expectedName) {
-      return list.find((device) => device.id === expectedId && device.name === expectedName) || null;
-    }
-    return findDeviceMatch(list, expectedId, expectedName);
-  }
-
-  function unavailableDeviceLabel(name, id, kind) {
-    const base = String(name || id || `${kind} device`).trim();
-    return `${base} (Unavailable)`;
-  }
-
-  function stripUnavailableSuffix(label) {
-    const raw = String(label || "").trim();
-    return raw.endsWith(" (Unavailable)") ? raw.slice(0, -" (Unavailable)".length) : raw;
   }
 
   function ensureOption(selectEl, value, label, unavailable = false) {

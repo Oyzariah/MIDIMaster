@@ -1,0 +1,340 @@
+/* Focused UI cleanup: page chrome, profile menu, binding actions, settings groups. */
+body[data-theme] .page-heading-row {
+  min-height: 56px;
+  margin: 0 0 8px;
+  padding: 0;
+  border-bottom: 0;
+  justify-content: flex-end;
+}
+
+body[data-theme] .page-heading-row h1 {
+  display: none;
+}
+
+body[data-theme] #plugins-page > .page-heading-row,
+body[data-theme] #settings-panel > .page-heading-row {
+  display: none;
+}
+
+body[data-theme] .bindings-toolbar {
+  width: 100%;
+  margin-left: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+body[data-theme] #main-screen {
+  gap: 0;
+}
+
+body[data-theme] #main-screen > .page-heading-row {
+  min-height: 0;
+  margin: 0;
+  padding: 10px 14px;
+  justify-content: stretch;
+  background: var(--surface-raised);
+  border: 1px solid var(--control-border);
+  border-bottom: 0;
+  border-radius: 5px 5px 0 0;
+}
+
+body[data-theme] .binding-search-field {
+  grid-column: 1;
+  width: 100%;
+  min-width: 0;
+}
+
+body[data-theme] .binding-search-field:focus-within {
+  background: var(--control-bg);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--control-border) 58%);
+  box-shadow: none;
+}
+
+body[data-theme] .binding-add-button {
+  grid-column: 2;
+  justify-self: end;
+}
+
+body[data-theme] .bindings-toolbar .binding-add-button {
+  height: 40px;
+  min-height: 40px;
+  width: 126px;
+  min-width: 126px;
+  padding: 0 16px;
+  border-radius: 4px;
+  border-color: color-mix(in srgb, var(--accent) 88%, var(--surface) 12%);
+  background: color-mix(in srgb, var(--accent) 84%, var(--surface) 16%);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: none;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    color 140ms ease;
+}
+
+body[data-theme] .bindings-toolbar .binding-add-button svg {
+  color: #fff;
+  fill: currentColor;
+}
+
+body[data-theme] .bindings-toolbar .binding-add-button:hover {
+  background: color-mix(in srgb, var(--accent) 90%, var(--surface) 10%);
+  border-color: color-mix(in srgb, var(--accent) 94%, var(--surface) 6%);
+  color: #fff;
+}
+
+body[data-theme] .bindings-card {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: 0;
+}
+
+body[data-theme] .binding-headers {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
+body[data-theme] .profile-select .select-button,
+body[data-theme] .topbar .midi-device-dropdown .target-button {
+  height: var(--control-h);
+  min-height: var(--control-h);
+  border-radius: 4px;
+  padding: 0 12px;
+  box-shadow: none;
+  width: 100%;
+  min-width: 0;
+}
+
+body[data-theme] .profile-select .select-button {
+  min-width: 0;
+}
+
+body[data-theme] .profile-select .select-button .caret,
+body[data-theme] .topbar .midi-device-dropdown .target-button .caret {
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1;
+}
+
+body[data-theme] .profile-select .dropdown {
+  width: 360px;
+  min-width: 360px;
+  padding: 8px;
+  gap: 6px;
+  border-radius: 4px;
+}
+
+body[data-theme] .profile-menu-tools {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--control-border);
+}
+
+body[data-theme] .profile-menu-create-row,
+body[data-theme] .profile-menu-action-row {
+  display: grid;
+  gap: 8px;
+}
+
+body[data-theme] .profile-menu-create-row {
+  grid-template-columns: minmax(170px, 1fr) auto 34px 34px;
+}
+
+body[data-theme] .profile-select .dropdown-item {
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--surface-subtle);
+  color: var(--text-primary);
+}
+
+body[data-theme] .profile-select .dropdown-item:not(.create):hover,
+body[data-theme] .profile-select .dropdown-item.selected {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+body[data-theme] .profile-select .dropdown-item button:first-child {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+body[data-theme] .profile-select .dropdown-item.selected button:first-child {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+body[data-theme] .profile-select .dropdown-item.selected button:first-child:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+}
+
+body[data-theme] .profile-select .dropdown-item.create input,
+body[data-theme] .profile-select .dropdown-item.create button,
+body[data-theme] .profile-select .dropdown-item button.secondary {
+  height: 34px;
+  min-height: 34px;
+  border-radius: 4px;
+}
+
+body[data-theme] .profile-select .dropdown-item.create .icon-action {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+}
+
+body[data-theme] .profile-select .dropdown-item.create .icon-action svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body[data-theme] .profile-select .dropdown-item.create button,
+body[data-theme] .profile-select .dropdown-item button.secondary {
+  background: var(--control-bg);
+  border: 1px solid var(--control-border);
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+body[data-theme] .profile-select .dropdown-item.create button:hover,
+body[data-theme] .profile-select .dropdown-item button.secondary:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border-strong);
+}
+
+body[data-theme] .profile-select .dropdown-item .delete {
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 18px;
+}
+
+body[data-theme] .profile-select .dropdown-item .delete:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+body[data-theme] .profile-select .dropdown-item.confirming {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 68px 76px;
+  gap: 8px;
+  align-items: center;
+  background: var(--surface-subtle);
+  border-color: var(--danger);
+}
+
+body[data-theme] .profile-select .dropdown-item.selected.confirming {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+body[data-theme] .profile-select .dropdown-item.confirming button:first-child {
+  min-width: 0;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid var(--control-border);
+  border-radius: 4px;
+  background: var(--control-bg);
+  color: var(--text-primary);
+  pointer-events: none;
+}
+
+body[data-theme] .profile-select .dropdown-item.selected.confirming button:first-child {
+  background: transparent;
+  border-color: transparent;
+  color: var(--accent);
+}
+
+body[data-theme] .profile-select .dropdown-item.confirming button.secondary,
+body[data-theme] .profile-select .dropdown-item.confirming button.delete.confirm {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  min-height: 34px;
+  padding: 0 10px;
+  justify-content: center;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+body[data-theme] .profile-select .dropdown-item.confirming button.delete.confirm {
+  border: 1px solid var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+body[data-theme] .profile-select .dropdown-item.confirming button.delete.confirm:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #ffffff;
+}
+
+body[data-theme] .binding-actions {
+  width: 100%;
+  justify-self: stretch;
+  justify-content: flex-end;
+  gap: 0;
+  padding-left: 0;
+  box-sizing: border-box;
+  transform: translateX(4px);
+}
+
+body[data-theme] .binding-actions-header {
+  padding-left: 0;
+  box-sizing: border-box;
+  text-align: right;
+}
+
+body[data-theme] .binding-action,
+body[data-theme] .binding-action.delete {
+  width: 28px;
+  height: 32px;
+  min-width: 28px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-theme] .binding-action:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+body[data-theme] .binding-action.delete:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+

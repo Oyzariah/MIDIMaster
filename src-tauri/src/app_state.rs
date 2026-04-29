@@ -166,7 +166,10 @@ impl AppState {
         }
     }
 
-    pub(crate) fn binding_matches_aux(mapping: &model::AuxiliaryControl, event: &MidiEvent) -> bool {
+    pub(crate) fn binding_matches_aux(
+        mapping: &model::AuxiliaryControl,
+        event: &MidiEvent,
+    ) -> bool {
         mapping.device_id == event.device_id
             && mapping.channel == event.channel
             && mapping.controller == event.controller
@@ -405,4 +408,3 @@ impl AppState {
         }
     }
 }
-
