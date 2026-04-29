@@ -1,0 +1,50 @@
+/* Final dark shell overrides after legacy dropdown styles */
+body.dark-mode:not([data-theme]) .binding-row,
+body.dark-mode:not([data-theme]) .list-item.binding-item {
+  background: transparent;
+  box-shadow: none;
+}
+
+body.dark-mode:not([data-theme]) .binding-name,
+body.dark-mode:not([data-theme]) .binding-name-input,
+body.dark-mode:not([data-theme]) .binding-control-cell,
+body.dark-mode:not([data-theme]) .binding-row .target-button,
+body.dark-mode:not([data-theme]) .mode-dropdown .target-button,
+body.dark-mode:not([data-theme]) .dropdown-item,
+body.dark-mode:not([data-theme]) .dropdown-item button,
+body.dark-mode:not([data-theme]) .dropdown-item button:first-child {
+  background: #111820;
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+body.dark-mode:not([data-theme]) .dropdown-item:hover,
+body.dark-mode:not([data-theme]) .dropdown-item button:hover,
+body.dark-mode:not([data-theme]) .dropdown-item button:first-child:hover {
+  background: #1c2530;
+  color: var(--text);
+}
+
+body.dark-mode:not([data-theme]) .binding-action,
+body.dark-mode:not([data-theme]) .binding-action.delete {
+  background: transparent;
+  border: 0;
+}
+
+body.dark-mode:not([data-theme]) .binding-action:hover {
+  color: var(--accent);
+  background: transparent;
+}
+
+body.dark-mode:not([data-theme]) .binding-action.delete:hover {
+  color: #ff8588;
+  background: transparent;
+}
+
+body.dark-mode:not([data-theme]) .settings-section,
+body.dark-mode:not([data-theme]) .settings-maintenance-section,
+body.dark-mode:not([data-theme]) .settings-updates-section {
+  background: #121820;
+  border-color: var(--line);
+}
+

@@ -1,0 +1,121 @@
+/* Plugin content safety net: plugin UIs should inherit app theme tokens. */
+body[data-theme] .connection-tab,
+body[data-theme] .connection-content-wrapper,
+body[data-theme] .connection-settings,
+body[data-theme] .connection-grid {
+  color: var(--text-primary);
+}
+
+body[data-theme] .connection-content-wrapper,
+body[data-theme] .connection-settings,
+body[data-theme] .connection-placeholder,
+body[data-theme] .hue-setup-card {
+  background: var(--surface-raised);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .connection-icon {
+  background: var(--surface-muted);
+  border: 1px solid var(--control-border);
+  border-radius: 6px;
+  padding: 4px;
+  object-fit: contain;
+}
+
+body[data-theme] .connections-nav-item .nav-icon {
+  background: var(--surface-muted);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px;
+  object-fit: contain;
+}
+
+body[data-theme] .connections-nav-item.active .nav-icon {
+  border-color: var(--control-border-strong);
+}
+
+body[data-theme] .connection-row,
+body[data-theme] .connection-row label,
+body[data-theme] .connection-footer .checkbox-row,
+body[data-theme] .connection-footer .checkbox-row label,
+body[data-theme] .hue-summary-text {
+  color: var(--text-secondary);
+}
+
+body[data-theme] .connection-row input,
+body[data-theme] .hue-mode-btn,
+body[data-theme] .hue-refresh-btn {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .connection-row input:focus,
+body[data-theme] .hue-mode-btn:hover,
+body[data-theme] .hue-refresh-btn:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border-strong);
+}
+
+body[data-theme] .hue-tab-strip {
+  background: var(--surface-subtle);
+  border-color: var(--control-border);
+}
+
+body[data-theme] .hue-mode-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+body[data-theme] .hue-setup-card .connection-row,
+body[data-theme] .hue-setup-card [role="listbox"],
+body[data-theme] .hue-setup-card [role="option"] {
+  background: var(--surface-subtle);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .hue-setup-card .plugins-manager-row {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .hue-setup-card .plugins-manager-row:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border-strong);
+}
+
+body[data-theme] .hue-setup-card .plugins-manager-row input[type="radio"],
+body[data-theme] .hue-actions input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+body[data-theme] .hue-actions,
+body[data-theme] .hue-actions .checkbox-row {
+  color: var(--text-secondary);
+}
+
+body[data-theme] .hue-paired-summary [style*="color"] {
+  color: var(--text-secondary) !important;
+}
+
+body[data-theme] .hue-setup-card [role="option"]:hover,
+body[data-theme] .hue-setup-card [role="option"][aria-selected="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+body[data-theme] .connection-button.connected,
+body[data-theme] .connection-button:disabled,
+body[data-theme] .connection-button.disabled {
+  background: var(--surface-muted);
+  border-color: var(--control-border);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+

@@ -1,0 +1,77 @@
+/* OBS Connection Styles */
+.obs-connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #f4f5fa;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #2b2d42;
+}
+
+.obs-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #a1a5b8;
+  flex-shrink: 0;
+}
+
+.obs-status-dot.connected {
+  background: #2ecc71;
+  box-shadow: 0 0 6px rgba(46, 204, 113, 0.5);
+}
+
+.obs-status-dot.connecting {
+  background: #f1c40f;
+  animation: obsConnecting 1s ease-in-out infinite;
+}
+
+.obs-status-dot.error {
+  background: #e74c3c;
+}
+
+@keyframes obsConnecting {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
+#obs-host,
+#obs-port,
+#obs-password {
+  width: 100%;
+  max-width: 200px;
+}
+
+.obs-connect-button {
+  width: 100%;
+  max-width: 200px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #2b2d42;
+  color: #fff;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+}
+
+.obs-connect-button:hover {
+  background: #3a3d57;
+}
+
+.obs-connect-button.connected {
+  background: #e74c3c;
+}
+
+.obs-connect-button.connected:hover {
+  background: #c0392b;
+}
+

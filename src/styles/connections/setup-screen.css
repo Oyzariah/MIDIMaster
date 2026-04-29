@@ -1,0 +1,71 @@
+/* Setup Screen Redesign */
+.setup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 480px;
+  /* Prevent it from getting too wide on large screens */
+  margin-bottom: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #2b2d42;
+}
+
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.form-actions button {
+  flex: 1;
+  /* Make buttons equal width */
+  padding: 10px;
+  font-weight: 600;
+}
+
+.secondary-button {
+  background: #fff;
+  color: #2b2d42;
+  border: 1px solid #ccd1e0;
+}
+
+.secondary-button:hover {
+  background: #f4f5fa;
+}
+
+.primary-button {
+  background: #2b2d42;
+  color: #fff;
+  border: 1px solid #2b2d42;
+}
+
+.primary-button:hover {
+  background: #3a3d57;
+}
+
+.danger-button {
+  background: rgba(255, 98, 104, 0.14);
+  color: #ff6268;
+  border: 1px solid #ff6268;
+}
+
+.danger-button:hover {
+  background: rgba(255, 98, 104, 0.2);
+  color: #ff6268;
+}
+

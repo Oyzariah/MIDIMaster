@@ -1,0 +1,663 @@
+.binding-config-content {
+  width: min(1160px, 96vw);
+  border-radius: 16px;
+  max-height: calc(100vh - 20px);
+  display: flex;
+  flex-direction: column;
+}
+
+.binding-config-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.binding-config-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(270px, 0.85fr);
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.binding-config-main-column {
+  display: grid;
+  gap: 12px;
+  padding: 10px 10px 8px;
+  border-right: 1px solid rgba(122, 141, 179, 0.16);
+  min-width: 0;
+}
+
+.binding-config-preview-column {
+  display: flex;
+  padding: 10px 10px 8px 8px;
+  min-width: 0;
+}
+
+.binding-config-section,
+.binding-config-preview-shell {
+  border: 1px solid rgba(122, 141, 179, 0.18);
+  border-radius: 12px;
+  padding: 10px;
+  background: linear-gradient(180deg, rgba(16, 25, 39, 0.72), rgba(13, 20, 31, 0.88));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.binding-config-section--curve {
+  gap: 14px;
+}
+
+.binding-config-stack,
+.binding-config-section {
+  display: grid;
+  gap: 12px;
+}
+
+.binding-config-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.binding-config-title {
+  color: #dfe9fb;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.binding-config-title-with-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.binding-config-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.binding-config-button {
+  border-radius: 10px;
+  min-width: 88px;
+  height: 40px;
+  padding: 0 14px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.binding-config-button--primary {
+  background: rgba(82, 173, 255, 0.18);
+  border-color: rgba(82, 173, 255, 0.32);
+  color: #eaf4ff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.binding-config-button--primary:hover {
+  background: rgba(82, 173, 255, 0.28);
+  border-color: rgba(82, 173, 255, 0.44);
+}
+
+.binding-config-button--secondary {
+  background: rgba(20, 29, 43, 0.82);
+  border-color: rgba(120, 144, 184, 0.2);
+  color: #dce8fb;
+}
+
+.binding-config-button--secondary:hover {
+  background: rgba(31, 43, 62, 0.9);
+  border-color: rgba(120, 144, 184, 0.32);
+}
+
+.binding-config-stack input[type="text"] {
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.binding-config-actions {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.binding-config-mode-root {
+  position: relative;
+  display: inline-flex;
+}
+
+.binding-config-mode-trigger {
+  min-width: 40px !important;
+  width: 40px;
+  height: 40px;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.binding-config-mode-icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.binding-config-mode-menu {
+  position: absolute;
+  left: 0;
+  top: auto;
+  bottom: calc(100% + 6px);
+  min-width: 130px;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  border-radius: 10px;
+  background: #f7f9fe;
+  border: 1px solid #d5dbea;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
+  z-index: 20;
+}
+
+.binding-config-mode-menu.hidden {
+  display: none;
+}
+
+.binding-config-mode-option {
+  width: 100%;
+  height: 40px;
+  border-radius: 8px;
+  text-align: left;
+  padding: 0 10px;
+  font-weight: 600;
+}
+
+.binding-config-label {
+  min-width: 0;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 0 14px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  font-weight: 600;
+}
+
+.binding-config-label-main {
+  min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.binding-config-inline-badge {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  cursor: help;
+}
+
+.binding-config-info-pill {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(147, 173, 219, 0.28);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #a4b3d4;
+  font-size: 12px;
+}
+
+.binding-config-curve-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.binding-config-curve-card {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  min-height: 94px;
+  border-radius: 12px;
+  border: 1px solid rgba(124, 151, 194, 0.18);
+  background: linear-gradient(180deg, rgba(15, 23, 34, 0.88), rgba(18, 28, 42, 0.78));
+  color: #dfe9fb;
+  text-align: left;
+}
+
+.binding-config-curve-card.is-selected {
+  border-color: rgba(78, 170, 255, 0.86);
+  box-shadow: 0 0 0 1px rgba(78, 170, 255, 0.32), inset 0 0 0 1px rgba(78, 170, 255, 0.18);
+}
+
+.binding-config-curve-card-title {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.binding-config-curve-card--custom .binding-config-curve-card-visual {
+  align-items: stretch;
+}
+
+.binding-config-curve-card-visual {
+  display: flex;
+  align-items: flex-end;
+  justify-content: stretch;
+  flex: 1;
+  border-radius: 12px;
+  background:
+    linear-gradient(rgba(136, 158, 195, 0.04), rgba(136, 158, 195, 0.04)),
+    linear-gradient(90deg, rgba(136, 158, 195, 0.05) 1px, transparent 1px),
+    linear-gradient(rgba(136, 158, 195, 0.05) 1px, transparent 1px);
+  background-size: auto, 16px 16px, 16px 16px;
+  padding: 8px;
+  touch-action: none;
+}
+
+.binding-config-curve-card-visual svg {
+  width: 100%;
+  height: 100%;
+}
+
+.binding-config-curve-editor-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.binding-config-curve-card-visual path {
+  fill: none;
+  stroke: #53b2ff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.binding-config-curve-card-visual polyline {
+  fill: none;
+  stroke: #53b2ff;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.binding-config-curve-card-point {
+  fill: #0e1725;
+  stroke: #dce8fb;
+  stroke-width: 1.4;
+  cursor: grab;
+  pointer-events: all;
+}
+
+.binding-config-curve-help {
+  margin: 0;
+  color: #98aac8;
+  line-height: 1.45;
+  min-height: 2.5em;
+  font-size: 12px;
+}
+
+.binding-config-custom-editor {
+  display: none;
+}
+
+.binding-config-preview-shell {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 0;
+  flex: 1;
+}
+
+.binding-config-preview-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(180px, 0.82fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.binding-config-preview-stage {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 12px;
+  padding: 10px;
+  min-height: 344px;
+  height: 100%;
+  border-radius: 16px;
+  border: 1px solid rgba(120, 144, 184, 0.18);
+  background: linear-gradient(180deg, rgba(14, 22, 34, 0.88), rgba(12, 18, 28, 0.94));
+}
+
+.binding-config-preview-target {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.binding-config-preview-target-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(47, 62, 90, 0.44);
+  overflow: hidden;
+}
+
+.binding-config-preview-target-icon .target-icon,
+.binding-config-preview-target-icon img {
+  width: 24px;
+  height: 24px;
+}
+
+.binding-config-preview-learn-shell {
+  display: grid;
+  align-content: stretch;
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+  padding: 12px;
+  min-height: 0;
+  height: 100%;
+  border-radius: 14px;
+  border: 1px solid rgba(120, 144, 184, 0.18);
+  background: linear-gradient(180deg, rgba(15, 23, 34, 0.72), rgba(12, 19, 29, 0.86));
+}
+
+.binding-config-preview-learn-row {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-height: 0;
+}
+
+.binding-config-preview-learn-row .binding-config-button {
+  width: 100%;
+  min-width: 0;
+}
+
+.binding-config-preview-learn-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #98aac8;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.binding-config-preview-learn-indicator.is-learning {
+  color: #dce8fb;
+}
+
+.binding-config-preview-learn-indicator.hidden {
+  display: none;
+}
+
+.binding-config-preview-learn-indicator .learn-panel-spinner {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.binding-config-preview-target-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.binding-config-preview-target-label {
+  color: #ecf3ff;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.binding-config-preview-target-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.binding-config-preview-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(83, 178, 255, 0.2);
+  background: rgba(83, 178, 255, 0.14);
+  color: #a9d7ff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.binding-config-preview-fader {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: stretch;
+  justify-content: center;
+  gap: 16px;
+  margin: 0 auto;
+  height: 100%;
+  min-height: 280px;
+}
+
+.binding-config-preview-scale {
+  display: grid;
+  align-content: space-between;
+  height: 100%;
+  padding: 10px 0;
+  color: #8090ad;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.binding-config-preview-track {
+  position: relative;
+  width: 52px;
+  height: 100%;
+  min-height: 0;
+  margin: 0 auto;
+  border-radius: 999px;
+  border: 1px solid rgba(111, 135, 175, 0.18);
+  background: rgba(8, 14, 22, 0.96);
+  overflow: hidden;
+}
+
+.binding-config-preview-fill {
+  position: absolute;
+  inset: auto 0 0;
+  height: 0;
+  background: linear-gradient(180deg, #58c2ff 0%, #3a95ff 55%, #2a71f8 100%);
+  box-shadow: 0 0 22px rgba(83, 178, 255, 0.28);
+}
+
+.binding-config-preview-thumb {
+  position: absolute;
+  left: 50%;
+  width: 64px;
+  height: 30px;
+  transform: translateX(-50%);
+  border-radius: 12px;
+  border: 1px solid rgba(122, 199, 255, 0.4);
+  background: linear-gradient(180deg, rgba(33, 58, 94, 0.96), rgba(19, 33, 55, 0.98));
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.34);
+}
+
+.binding-config-preview-meta {
+  display: grid;
+  align-content: start;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
+  padding: 8px 0;
+  height: 100%;
+}
+
+.binding-config-preview-value-block {
+  display: grid;
+  gap: 6px;
+}
+
+.binding-config-preview-value {
+  color: #59b7ff;
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.binding-config-preview-status {
+  color: #96a8c6;
+  font-size: 13px;
+}
+
+.binding-config-preview-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.binding-config-preview-summary-row {
+  display: grid;
+  gap: 6px;
+}
+
+.binding-config-preview-summary-label {
+  color: #92a5c4;
+  font-size: 13px;
+}
+
+.binding-config-preview-summary-value {
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(120, 144, 184, 0.16);
+  background: rgba(11, 18, 28, 0.78);
+  color: #e3eeff;
+  display: flex;
+  align-items: center;
+  font-weight: 600;
+}
+
+.binding-config-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border-top: 1px solid rgba(122, 141, 179, 0.16);
+  flex: 0 0 auto;
+}
+
+.binding-config-footer button {
+  min-width: 136px;
+  height: 34px;
+  border-radius: 10px;
+}
+
+@media (max-height: 780px) {
+  .target-panel {
+    padding: 6px;
+  }
+
+  .target-panel-header {
+    padding: 8px 12px;
+  }
+
+  .binding-config-curve-cards {
+    gap: 8px;
+  }
+
+  .binding-config-content {
+    max-height: calc(100vh - 24px);
+  }
+
+  .binding-config-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(236px, 0.8fr);
+  }
+
+  .binding-config-main-column,
+  .binding-config-preview-column {
+    padding: 6px;
+  }
+
+  .binding-config-section,
+  .binding-config-preview-shell {
+    padding: 8px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .binding-config-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .binding-config-main-column {
+    border-right: none;
+    border-bottom: 1px solid rgba(122, 141, 179, 0.16);
+  }
+
+  .binding-config-preview-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .binding-config-curve-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .binding-config-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .binding-config-preview-stage {
+    min-height: 300px;
+  }
+
+  .binding-config-preview-card {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 620px) {
+  .binding-config-content {
+    width: min(96vw, 1370px);
+  }
+
+  .binding-config-main-column,
+  .binding-config-preview-column {
+    padding: 14px;
+  }
+
+  .binding-config-curve-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .binding-config-preview-track {
+    min-height: 220px;
+  }
+
+  .binding-config-footer {
+    flex-direction: column;
+  }
+
+  .binding-config-footer button {
+    width: 100%;
+  }
+}
+

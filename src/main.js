@@ -1,4 +1,3 @@
-import { createPluginHost } from "./plugin_host.js";
 import { PLUGINS_ICON_DATA, createPluginsTabs } from "./features/plugins/tabs.js";
 import { createSettingsFeature } from "./features/settings/settings.js";
 import { createProfilesFeature } from "./features/profiles/profiles.js";
@@ -6,28 +5,34 @@ import { createBindingsFeature } from "./features/bindings/bindings.js";
 import { createTargetsFeature } from "./features/targets/targets.js";
 import { createOsdFeature } from "./features/osd/osd.js";
 import { createMidiFeature } from "./features/midi/midi.js";
+import {
+  applyCustomFaderCurve,
+  applyFaderCurve,
+  bindingHasIntegrationTarget,
+  decodeRelativeDelta,
+  getBindingTargets,
+  getPrimaryBindingTarget,
+  normalizeBinding,
+  normalizeCustomCurvePoints,
+  normalizeFaderCurve,
+  presetCurvePoints,
+  setBindingTargets,
+} from "./core/binding_model.js";
 import { createTargetCore } from "./core/target_core.js";
 import { createConnectionsPanelController } from "./app/connections_panel.js";
 import { createAlertsController } from "./app/alerts.js";
+import { createTauriBridge, scheduleRetry } from "./app/bootstrap.js";
+import {
+  hasProfileMidiPreference,
+  normalizeProfileMidiPreference,
+} from "./app/preferences.js";
+import { createSessionRefresher } from "./app/session_refresh.js";
+import { createPluginRuntime } from "./app/plugin_runtime.js";
 
-let coreApi = null;
-let eventApi = null;
-let invoke = async (...args) => {
-  if (window.__TAURI__?.core?.invoke) {
-    return window.__TAURI__.core.invoke(...args);
-  }
-  throw new Error("Tauri API missing");
-};
-let listen = async (event, handler) => {
-  if (window.__TAURI__?.event?.listen) {
-    return window.__TAURI__.event.listen(event, handler);
-  }
-  console.warn("Tauri Event API missing/delayed for listener:", event);
-  return () => { };
-};
+const tauriBridge = createTauriBridge();
+const { invoke, listen } = tauriBridge;
 
-let pluginHost = null;
-let pluginHostStarted = false;
+let pluginRuntime = null;
 
 let settingsFeature = null;
 let profilesFeature = null;
@@ -41,311 +46,21 @@ document.addEventListener("contextmenu", (event) => {
   event.preventDefault();
 });
 
+function getPluginHost() {
+  return pluginRuntime?.getPluginHost?.() || null;
+}
+
 async function startPluginHostIfNeeded() {
-  if (isOsdWindow) return;
-
-  if (!pluginHost) {
-    pluginHost = createPluginHost({
-      invoke,
-      listen,
-      onUpdatePluginSettings: updateProfilePluginSettings,
-      onInvalidateBindingsUI: (() => {
-        let t = null;
-        return () => {
-          // Debounce rapid status updates.
-          if (t) return;
-      t = setTimeout(() => {
-        t = null;
-        try {
-          if (bindingsFeature?.isInlineNameEditingActive?.()) {
-            requestBindingsRerender("plugin_invalidate");
-            return;
-          }
-          // Avoid replacing binding rows while the user is actively editing/selecting.
-          if (isBindingInteractionActive()) {
-            return;
-          }
-          requestBindingsRerender("plugin_invalidate");
-        } catch { }
-      }, 75);
-    };
-  })(),
-    });
-  }
-
-  // Push profile state BEFORE plugin activation so plugins read correct settings.
-  try {
-    pluginHost.setProfileState({
-      name: activeProfileName || localStorage.getItem("activeProfileName") || "Default",
-      plugin_settings: profilePluginSettings || {},
-    });
-  } catch { }
-
-  if (!pluginHostStarted) {
-    await pluginHost.loadInstalledPlugins().catch(() => { });
-    await pluginHost.start().catch(() => { });
-    pluginHostStarted = true;
-  }
-
-  try {
-    pluginHost.setBindings(bindings);
-  } catch { }
-
-  // Hydrate integration targets with stored display metadata so bindings keep
-  // a stable, user-friendly label/icon even if a plugin is later missing.
-  try {
-    const changed = hydrateIntegrationDisplayMetadata();
-    if (changed) {
-      try { pluginHost.setBindings(bindings); } catch { }
-      await saveBindingsForProfile();
-    }
-  } catch { }
-
-  // If the connections panel is open, refresh tabs.
-  try {
-    if (connectionsPanel && !connectionsPanel.classList.contains("hidden")) {
-      mountConnectionsTabs({ force: true });
-    }
-  } catch { }
-}
-
-function hydrateIntegrationDisplayMetadata() {
-  if (!Array.isArray(bindings) || !bindings.length) return false;
-  let changed = false;
-
-  for (const b of bindings) {
-    const targets = getBindingTargets(b);
-    let updatedAny = false;
-    const nextTargets = targets.map((t) => {
-      const integ = t?.Integration || t?.integration;
-      if (!integ || typeof integ !== "object" || !integ.integration_id) return t;
-      const data = (integ.data && typeof integ.data === "object") ? integ.data : {};
-
-      if (typeof data.label === "string") {
-        const suffixes = [" (Unavailable)", " (Connecting...)", " (Disconnected)"];
-        let nextLabel = data.label;
-        for (const s of suffixes) {
-          if (nextLabel.endsWith(s)) nextLabel = nextLabel.slice(0, -s.length);
-        }
-        if (nextLabel !== data.label) {
-          updatedAny = true;
-          return {
-            Integration: {
-              integration_id: String(integ.integration_id),
-              kind: String(integ.kind || ""),
-              data: { ...data, label: nextLabel },
-            },
-          };
-        }
-      }
-
-      const hasLabel = typeof data.label === "string" && data.label.trim().length > 0;
-      const hasIcon = typeof data.icon_data === "string" && data.icon_data.trim().length > 0;
-      if (hasLabel && hasIcon) return t;
-
-      let desc = null;
-      try {
-        const handler = pluginHost?.getIntegration?.(integ.integration_id);
-        if (handler && typeof handler.describeTarget === "function") {
-          desc = handler.describeTarget({ Integration: integ });
-        }
-      } catch {
-        desc = null;
-      }
-
-      if (!desc || typeof desc !== "object") return t;
-      const next = { ...data };
-      if (!hasLabel && typeof desc.label === "string" && desc.label.trim()) next.label = desc.label;
-      if (!hasIcon && typeof desc.icon_data === "string" && desc.icon_data.trim()) next.icon_data = desc.icon_data;
-
-      if (next.label !== data.label || next.icon_data !== data.icon_data) {
-        updatedAny = true;
-        return {
-          Integration: {
-            integration_id: String(integ.integration_id),
-            kind: String(integ.kind || ""),
-            data: next,
-          },
-        };
-      }
-      return t;
-    });
-
-    if (updatedAny) {
-      setBindingTargets(b, nextTargets);
-      changed = true;
-    }
-  }
-
-  return changed;
-}
-
-function getBindingTargets(binding) {
-  if (!binding || typeof binding !== "object") return [];
-  if (Array.isArray(binding.targets) && binding.targets.length > 0) {
-    const normalized = binding.targets.filter(Boolean).filter((t) => t !== "Unset").slice(0, 8);
-    if (normalized.length > 0) return normalized;
-  }
-  if (binding.target != null) {
-    return [binding.target];
-  }
-  return [];
-}
-
-function setBindingTargets(binding, targets) {
-  if (!binding || typeof binding !== "object") return;
-  const normalized = Array.isArray(targets) ? targets.filter(Boolean).slice(0, 8) : [];
-  if (normalized.length === 0) normalized.push("Unset");
-  binding.targets = normalized;
-  binding.target = normalized[0] || "Unset";
-}
-
-function getPrimaryBindingTarget(binding) {
-  return getBindingTargets(binding)[0] || "Unset";
-}
-
-function bindingHasIntegrationTarget(binding) {
-  return getBindingTargets(binding).some((target) => {
-    const integ = target?.Integration || target?.integration;
-    return Boolean(integ && typeof integ === "object" && integ.integration_id);
-  });
-}
-
-function normalizeBinding(binding) {
-  if (!binding || typeof binding !== "object") return binding;
-  const out = { ...binding };
-  setBindingTargets(out, getBindingTargets(out));
-  out.mode = (out.mode === "Relative") ? "Relative" : "Absolute";
-  out.relative_format = "Auto";
-  out.fader_curve = normalizeFaderCurve(out.fader_curve);
-  out.custom_curve = normalizeCustomCurvePoints(out.custom_curve);
-  if (out.custom_curve.length < 2) {
-    out.custom_curve = presetCurvePoints(out.fader_curve);
-  }
-  out.mute_behavior = out.mute_behavior === "SetFromValue" ? "SetFromValue" : "ToggleOnPress";
-  if (out.mute_control && typeof out.mute_control === "object") {
-    out.mute_control = {
-      ...out.mute_control,
-      mute_behavior: out.mute_control.mute_behavior === "SetFromValue" ? "SetFromValue" : "ToggleOnPress",
-    };
-  }
-  if (out.assign_mode !== "Replace") out.assign_mode = "Add";
-  if (!out.hotkey || typeof out.hotkey !== "object") out.hotkey = null;
-  if (!out.open_application || typeof out.open_application !== "object") {
-    out.open_application = null;
-  } else {
-    const path = String(out.open_application.path || "").trim();
-    const display = String(out.open_application.display || "").trim();
-    const icon_data = typeof out.open_application.icon_data === "string" && out.open_application.icon_data.trim()
-      ? out.open_application.icon_data.trim()
-      : null;
-    out.open_application = path ? { path, display: display || path, icon_data } : null;
-  }
-  return out;
-}
-
-async function updateProfilePluginSettings(pluginId, nextSettings) {
-  if (profilesFeature && typeof profilesFeature.updateProfilePluginSettings === "function") {
-    return profilesFeature.updateProfilePluginSettings(pluginId, nextSettings);
-  }
-
-  // Fallback: update local state and best-effort persist.
-  if (!pluginId || typeof pluginId !== "string") return;
-  const safe = (nextSettings && typeof nextSettings === "object") ? nextSettings : {};
-  profilePluginSettings = { ...(profilePluginSettings || {}), [pluginId]: safe };
-  const name = activeProfileName || localStorage.getItem("activeProfileName") || "Default";
-  if (!activeProfileName) activeProfileName = name;
-  try { pluginHost?.setProfileState?.({ name, plugin_settings: profilePluginSettings }); } catch { }
-  await saveBindingsForProfile();
+  return pluginRuntime?.startPluginHostIfNeeded?.();
 }
 
 function extractIntegrationTarget(target) {
-  if (!target || typeof target !== "object") return null;
-  const integ = target.Integration || target.integration;
-  if (!integ || typeof integ !== "object" || !integ.integration_id) return null;
-  return {
-    integration_id: String(integ.integration_id),
-    kind: String(integ.kind || ""),
-    data: integ.data || {},
-  };
+  return pluginRuntime?.extractIntegrationTarget?.(target) || null;
 }
 
 async function triggerIntegration(binding, action, value) {
-  if (!pluginHost || !binding) return false;
-  const targets = getBindingTargets(binding);
-  const integrationGroups = new Map();
-  let invoked = false;
-
-  for (let i = 0; i < targets.length; i += 1) {
-    const rawTarget = targets[i];
-    const target = extractIntegrationTarget(rawTarget);
-    if (!target) continue;
-    const handler = pluginHost.getIntegration(target.integration_id);
-    if (!handler) continue;
-
-    if (action === "Volume") {
-      if (!integrationGroups.has(target.integration_id)) {
-        integrationGroups.set(target.integration_id, { handler, targets: [] });
-      }
-      integrationGroups.get(target.integration_id).targets.push({
-        target,
-        target_index: i,
-        target_count: 0,
-        is_primary_target: i === 0,
-        original_target_index: i,
-        binding_target_count: targets.length,
-      });
-      invoked = true;
-      continue;
-    }
-
-    if (typeof handler.onBindingTriggered !== "function") continue;
-    await handler.onBindingTriggered({
-      binding_id: binding.id,
-      action,
-      value,
-      target,
-      target_index: i,
-      target_count: targets.length,
-      is_primary_target: i === 0,
-    });
-    invoked = true;
-  }
-
-  for (const [integrationId, entry] of integrationGroups.entries()) {
-    const groupedTargets = entry.targets.map((item, index) => ({
-      ...item,
-      target_index: index,
-      target_count: entry.targets.length,
-    }));
-    if (typeof entry.handler?.onBindingTriggeredBatch === "function") {
-      await entry.handler.onBindingTriggeredBatch({
-        binding_id: binding.id,
-        action,
-        value,
-        integration_id: integrationId,
-        targets: groupedTargets,
-      });
-      continue;
-    }
-
-    if (typeof entry.handler?.onBindingTriggered !== "function") continue;
-    for (const targetEntry of groupedTargets) {
-      await entry.handler.onBindingTriggered({
-        binding_id: binding.id,
-        action,
-        value,
-        target: targetEntry.target,
-        target_index: targetEntry.target_index,
-        target_count: targetEntry.target_count,
-        is_primary_target: targetEntry.is_primary_target,
-        original_target_index: targetEntry.original_target_index,
-      });
-    }
-  }
-  return invoked;
+  return pluginRuntime?.triggerIntegration?.(binding, action, value) || false;
 }
-
 const midiSelect = document.getElementById("midi-device");
 const midiOutputSelect = document.getElementById("midi-output-device");
 const midiStatus = document.getElementById("midi-status");
@@ -489,12 +204,7 @@ const alertCancel = document.getElementById("alert-cancel");
 const alertOk = document.getElementById("alert-ok");
 
 function bindTauriApi() {
-  coreApi = window.__TAURI__?.core ?? null;
-  eventApi = window.__TAURI__?.event ?? null;
-  if (coreApi?.invoke && eventApi?.listen) {
-    return true;
-  }
-  return false;
+  return tauriBridge.bind();
 }
 
 let sessions = [];
@@ -531,21 +241,6 @@ let persistedMidiOutputId = "";
 let persistedMidiInputName = "";
 let persistedMidiOutputName = "";
 let persistedActiveProfileName = "";
-
-function normalizeProfileMidiPreference(source) {
-  const current = (source && typeof source === "object") ? source : {};
-  return {
-    inputDeviceId: String(current.inputDeviceId || current.input_device_id || "").trim(),
-    outputDeviceId: String(current.outputDeviceId || current.output_device_id || "").trim(),
-    inputDeviceName: String(current.inputDeviceName || current.input_device_name || "").trim(),
-    outputDeviceName: String(current.outputDeviceName || current.output_device_name || "").trim(),
-  };
-}
-
-function hasProfileMidiPreference(source) {
-  const pref = normalizeProfileMidiPreference(source);
-  return Boolean(pref.inputDeviceId && pref.outputDeviceId);
-}
 
 function updateThemeToggleMeta(isDark) {
   if (!themeToggleButton) return;
@@ -869,7 +564,7 @@ const targetCore = createTargetCore({
   getSessions: () => sessions,
   getPlaybackDevices: () => playbackDevices,
   getRecordingDevices: () => recordingDevices,
-  getPluginHost: () => pluginHost,
+  getPluginHost,
   getIntegrationTargetState: getIntegrationStateForTarget,
 });
 
@@ -1022,99 +717,33 @@ function isBindingInteractionActive() {
   return bindingsFeature?.isBindingInteractionActive?.() ?? (isBindingTargetMenuOpen() || isBindingNameEditing() || isBindingSelectEditing());
 }
 
-function simplifySessionForComparison(s) {
-  // Return a version of the session object without volatile fields like volume/mute
-  if (!s) return null;
-  const { volume, muted, ...rest } = s;
-  return rest;
-}
-
-function structurallyEqual(list1, list2) {
-  if (list1.length !== list2.length) return false;
-  const s1 = list1.map(simplifySessionForComparison);
-  const s2 = list2.map(simplifySessionForComparison);
-  return JSON.stringify(s1) === JSON.stringify(s2);
-}
-
 function updateBindingValues() {
   bindingsFeature?.updateBindingValues?.();
 }
 
+const sessionRefresher = createSessionRefresher({
+  invoke,
+  getState: () => ({
+    sessions,
+    playbackDevices,
+    recordingDevices,
+    sessionsContainer,
+  }),
+  setState: (next) => {
+    if (Object.prototype.hasOwnProperty.call(next, "sessions")) sessions = next.sessions;
+    if (Object.prototype.hasOwnProperty.call(next, "playbackDevices")) playbackDevices = next.playbackDevices;
+    if (Object.prototype.hasOwnProperty.call(next, "recordingDevices")) recordingDevices = next.recordingDevices;
+  },
+  actions: {
+    isBindingInteractionActive,
+    renderBindings,
+    updateBindingValues,
+  },
+});
+
 async function refreshSessions() {
-  let sessionsChanged = false;
-  let sessionsStructureChanged = false;
-  try {
-    const nextSessions = await invoke("list_sessions");
-    if (JSON.stringify(nextSessions) !== JSON.stringify(sessions)) {
-      if (!structurallyEqual(nextSessions, sessions)) {
-        sessionsStructureChanged = true;
-      }
-      sessions = nextSessions;
-      sessionsChanged = true;
-    }
-  } catch (error) {
-    console.warn("Failed to refresh sessions, keeping previous state:", error);
-    // Don't clear sessions on transient error
-  }
-
-  let devicesChanged = false;
-  let devicesStructureChanged = false;
-  try {
-    const nextPlayback = await invoke("list_playback_devices");
-    if (JSON.stringify(nextPlayback) !== JSON.stringify(playbackDevices)) {
-      if (!structurallyEqual(nextPlayback, playbackDevices)) {
-        devicesStructureChanged = true;
-      }
-      playbackDevices = nextPlayback;
-      devicesChanged = true;
-    }
-  } catch (error) {
-    console.warn("Failed to refresh playback devices, keeping previous state:", error);
-    // Don't clear devices on transient error
-  }
-
-  try {
-    const nextRecording = await invoke("list_recording_devices");
-    if (JSON.stringify(nextRecording) !== JSON.stringify(recordingDevices)) {
-      if (!structurallyEqual(nextRecording, recordingDevices)) {
-        devicesStructureChanged = true;
-      }
-      recordingDevices = nextRecording;
-      devicesChanged = true;
-    }
-  } catch (error) {
-    console.warn("Failed to refresh recording devices, keeping previous state:", error);
-    // Don't clear devices on transient error
-  }
-
-  if (sessionsStructureChanged && sessionsContainer) {
-    sessionsContainer.innerHTML = "";
-    sessions.forEach((session) => {
-      if (session.is_master || session.id === "master") {
-        return;
-      }
-      const item = document.createElement("div");
-      item.className = "list-item";
-      const title = document.createElement("div");
-      title.textContent = session.display_name;
-      const detail = document.createElement("div");
-      detail.className = "path";
-      detail.textContent = session.process_path || "System";
-      item.appendChild(title);
-      item.appendChild(detail);
-      sessionsContainer.appendChild(item);
-    });
-  }
-
-  if ((sessionsStructureChanged || devicesStructureChanged) && !isBindingInteractionActive()) {
-    renderBindings();
-  } else if ((sessionsChanged || devicesChanged) && !isBindingInteractionActive()) {
-    // Structure matched (so we didn't re-render), but values changed.
-    // Update sliders/buttons in place.
-    updateBindingValues();
-  }
+  return sessionRefresher.refreshSessions();
 }
-
 async function refreshProfiles(preferredName = "") {
   if (profilesFeature && typeof profilesFeature.refreshProfiles === "function") {
     return profilesFeature.refreshProfiles(preferredName);
@@ -1159,6 +788,26 @@ let appSettings = {
   autoCheckUpdates: true,
 };
 let appStarted = false;
+
+pluginRuntime = createPluginRuntime({
+  invoke,
+  listen,
+  isOsdWindow,
+  getActiveProfileName: () => activeProfileName,
+  setActiveProfileName: (next) => { activeProfileName = next; },
+  getProfilePluginSettings: () => profilePluginSettings,
+  setProfilePluginSettings: (next) => { profilePluginSettings = next; },
+  getBindings: () => bindings,
+  getProfilesFeature: () => profilesFeature,
+  getBindingsFeature: () => bindingsFeature,
+  getConnectionsPanel: () => connectionsPanel,
+  getBindingTargets,
+  setBindingTargets,
+  saveBindingsForProfile,
+  isBindingInteractionActive,
+  requestBindingsRerender,
+  mountConnectionsTabs: (options) => connectionsController?.mountConnectionsTabs?.(options),
+});
 
 // Feature modules
 settingsFeature = createSettingsFeature({
@@ -1216,7 +865,7 @@ profilesFeature = createProfilesFeature({
   setBindings: (next) => { bindings = next; },
   bindingFallbackName,
   renderBindings,
-  getPluginHost: () => pluginHost,
+  getPluginHost,
   startPluginHostIfNeeded,
   getOsdSettings: () => osdSettings,
   setOsdSettings: (next) => { osdSettings = next; },
@@ -1253,7 +902,7 @@ targetsFeature = createTargetsFeature({
   mediaNextTrackIconData,
   mediaPrevTrackIconData,
   mediaStopIconData,
-  getPluginHost: () => pluginHost,
+  getPluginHost,
   getSessions: () => sessions,
   getPlaybackDevices: () => playbackDevices,
   getRecordingDevices: () => recordingDevices,
@@ -1343,7 +992,7 @@ bindingsFeature = createBindingsFeature({
   showVolumeOsd,
   showMuteOsd,
   saveBindingsForProfile,
-  getPluginHost: () => pluginHost,
+  getPluginHost,
   getEditingBindingId: () => editingBindingId,
   setEditingBindingId: (next) => { editingBindingId = next; },
   getPendingFocusBindingId: () => pendingFocusBindingId,
@@ -1486,166 +1135,6 @@ function createTargetIcon(option) {
   return targetsFeature?.createTargetIcon?.(option) || document.createElement("span");
 }
 
-function normalizeRelativeFormat(raw) {
-  const value = String(raw || "Auto");
-  if (
-    value === "Auto"
-    || value === "TwosComplement"
-    || value === "BinaryOffset"
-    || value === "SignMagnitude"
-  ) {
-    return value;
-  }
-  return "Auto";
-}
-
-function decodeRelativeTwosComplement(value) {
-  if (value === 0 || value === 64) return 0;
-  if (value >= 1 && value <= 63) return value;
-  if (value >= 65 && value <= 127) return value - 128;
-  return null;
-}
-
-function decodeRelativeBinaryOffset(value) {
-  if (value === 0 || value === 64) return 0;
-  if (value >= 1 && value <= 63) return -(64 - value);
-  if (value >= 65 && value <= 127) return value - 64;
-  return null;
-}
-
-function decodeRelativeSignMagnitude(value) {
-  if (value === 0 || value === 64) return 0;
-  if (value >= 1 && value <= 63) return value;
-  if (value >= 65 && value <= 127) return -(value - 64);
-  return null;
-}
-
-function detectRelativeFormatAuto(value, previousFormat) {
-  if (previousFormat && previousFormat !== "Auto") {
-    return previousFormat;
-  }
-  if (value >= 96 && value <= 127) return "TwosComplement";
-  if (value === 63) return "BinaryOffset";
-  if (value >= 65 && value <= 95) return "SignMagnitude";
-  return null;
-}
-
-function decodeRelativeDelta(binding, value) {
-  const configured = normalizeRelativeFormat(binding?.relative_format);
-  let format = configured;
-  if (format === "Auto") {
-    const key = String(binding?.id || "");
-    const previouslyDetected = key ? osdRelativeAutoFormatByBinding.get(key) : null;
-    const detected = detectRelativeFormatAuto(value, previouslyDetected);
-    if (detected && key) {
-      osdRelativeAutoFormatByBinding.set(key, detected);
-    }
-    format = detected || previouslyDetected || "TwosComplement";
-  }
-
-  if (format === "TwosComplement") return decodeRelativeTwosComplement(value);
-  if (format === "BinaryOffset") return decodeRelativeBinaryOffset(value);
-  if (format === "SignMagnitude") return decodeRelativeSignMagnitude(value);
-  return null;
-}
-
-function normalizeFaderCurve(raw) {
-  const value = String(raw || "Linear");
-  return ["Linear", "Exponential", "Logarithmic", "SCurve", "Custom"].includes(value)
-    ? value
-    : "Linear";
-}
-
-function presetCurvePoints(curve) {
-  switch (normalizeFaderCurve(curve)) {
-    case "Exponential":
-      return [
-        { x: 0, y: 0 },
-        { x: 0.18, y: 0.04 },
-        { x: 0.42, y: 0.16 },
-        { x: 0.72, y: 0.5 },
-        { x: 1, y: 1 },
-      ];
-    case "Logarithmic":
-      return [
-        { x: 0, y: 0 },
-        { x: 0.08, y: 0.34 },
-        { x: 0.24, y: 0.58 },
-        { x: 0.52, y: 0.8 },
-        { x: 1, y: 1 },
-      ];
-    case "SCurve":
-      return [
-        { x: 0, y: 0 },
-        { x: 0.18, y: 0.06 },
-        { x: 0.5, y: 0.5 },
-        { x: 0.82, y: 0.94 },
-        { x: 1, y: 1 },
-      ];
-    case "Custom":
-      return [
-        { x: 0, y: 0 },
-        { x: 0.22, y: 0.34 },
-        { x: 0.5, y: 0.82 },
-        { x: 0.78, y: 0.3 },
-        { x: 1, y: 1 },
-      ];
-    case "Linear":
-    default:
-      return [
-        { x: 0, y: 0 },
-        { x: 1, y: 1 },
-      ];
-  }
-}
-
-function normalizeCustomCurvePoints(points) {
-  const normalized = Array.isArray(points)
-    ? points
-        .map((point) => ({
-          x: Math.min(1, Math.max(0, Number(point?.x) || 0)),
-          y: Math.min(1, Math.max(0, Number(point?.y) || 0)),
-        }))
-        .sort((a, b) => a.x - b.x)
-    : [];
-  if (normalized.length >= 2) {
-    normalized[0].x = 0;
-    normalized[normalized.length - 1].x = 1;
-  }
-  return normalized;
-}
-
-function applyCustomFaderCurve(points, normalized) {
-  const clamped = Math.min(1, Math.max(0, Number(normalized) || 0));
-  const normalizedPoints = normalizeCustomCurvePoints(points);
-  if (normalizedPoints.length < 2) return clamped;
-  if (clamped <= normalizedPoints[0].x) return normalizedPoints[0].y;
-  for (let index = 0; index < normalizedPoints.length - 1; index += 1) {
-    const start = normalizedPoints[index];
-    const end = normalizedPoints[index + 1];
-    if (clamped > end.x) continue;
-    const span = end.x - start.x;
-    if (Math.abs(span) < 0.00001) return end.y;
-    const t = Math.min(1, Math.max(0, (clamped - start.x) / span));
-    return start.y + ((end.y - start.y) * t);
-  }
-  return normalizedPoints[normalizedPoints.length - 1].y;
-}
-
-function applyFaderCurve(curve, normalized) {
-  const clamped = Math.min(1, Math.max(0, Number(normalized) || 0));
-  switch (normalizeFaderCurve(curve)) {
-    case "Exponential":
-      return Math.pow(clamped, 0.55);
-    case "Logarithmic":
-      return Math.pow(clamped, 2.2);
-    case "SCurve":
-      return clamped * clamped * (3 - (2 * clamped));
-    default:
-      return clamped;
-  }
-}
-
 function findBindingForEvent(payload) {
   if (!payload || !bindings.length) {
     return null;
@@ -1673,7 +1162,7 @@ function resolveOsdVolume(binding, payload) {
     return null;
   }
   if (binding.mode === "Relative") {
-    const delta = decodeRelativeDelta(binding, payload.value);
+    const delta = decodeRelativeDelta(binding, payload.value, osdRelativeAutoFormatByBinding);
     if (delta == null) {
       return null;
     }
@@ -1742,7 +1231,7 @@ let connectionsController = null;
 
 const pluginsTabs = createPluginsTabs({
   invoke,
-  getPluginHost: () => pluginHost,
+  getPluginHost,
   reloadPlugins: () => connectionsController?.reloadPlugins?.(),
   showConfirm: (options = {}) => alertsController?.showConfirm?.(options) || Promise.resolve(false),
 });
@@ -1763,13 +1252,8 @@ connectionsController = createConnectionsPanelController({
     getPluginsBrowserSections: () => pluginsTabs.getPluginsBrowserSections(),
     mountPluginsBrowserTab: (...args) => pluginsTabs.mountPluginsBrowserTab(...args),
   },
-  getPluginHost: () => pluginHost,
-  setPluginHost: (next) => {
-    pluginHost = next;
-    if (!next) {
-      pluginHostStarted = false;
-    }
-  },
+  getPluginHost,
+  setPluginHost: (next) => pluginRuntime?.setPluginHost?.(next),
   startPluginHostIfNeeded,
 });
 
@@ -2517,7 +2001,7 @@ async function startMainApp() {
 
 async function init() {
   if (!bindTauriApi()) {
-    setTimeout(() => init(), 200);
+    scheduleRetry(() => init(), 200);
     return;
   }
   await setupListeners().catch(() => { });

@@ -1,0 +1,274 @@
+/* Shell refinements: collapsible sidebar, topbar update action, target back icon. */
+.app-shell,
+.app-sidebar,
+.app-name,
+.nav-label,
+.sidebar-nav-item,
+.sidebar-footer,
+.sidebar-footer-meta,
+.sidebar-collapse-toggle svg {
+  transition:
+    grid-template-columns 160ms ease,
+    width 160ms ease,
+    opacity 120ms ease,
+    transform 160ms ease,
+    padding 160ms ease;
+}
+
+.sidebar-brand {
+  position: static;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 58px;
+  min-width: 58px;
+  padding: 10px 0 0;
+  min-height: 52px;
+}
+
+.sidebar-footer-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex: 0 0 auto;
+}
+
+.sidebar-footer-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.sidebar-footer-version-label {
+  display: none;
+}
+
+.sidebar-footer-version {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+
+.sidebar-collapse-toggle {
+  position: absolute;
+  right: 0;
+  top: 51px;
+  z-index: 5;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.sidebar-collapse-toggle:hover {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--accent);
+}
+
+.sidebar-collapse-toggle:active {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--accent);
+}
+
+.sidebar-collapse-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 62%, transparent);
+  outline-offset: 2px;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.sidebar-collapse-toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.app-shell.sidebar-collapsed {
+  grid-template-columns: 78px minmax(0, 1fr);
+}
+
+.app-shell.sidebar-collapsed .app-sidebar {
+  padding: 14px 10px 20px;
+}
+
+.app-shell.sidebar-collapsed .sidebar-brand {
+  width: 58px;
+  height: 74px;
+  justify-content: center;
+  padding: 0;
+}
+
+.app-shell.sidebar-collapsed .app-name,
+.app-shell.sidebar-collapsed .nav-label {
+  display: none;
+  width: auto;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.app-shell.sidebar-collapsed .sidebar-collapse-toggle {
+  right: 0;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.app-shell.sidebar-collapsed .sidebar-collapse-toggle:hover {
+  color: var(--accent);
+}
+
+.app-shell.sidebar-collapsed .sidebar-collapse-toggle svg {
+  transform: translateX(32px) rotate(180deg);
+}
+
+.app-shell.sidebar-collapsed .sidebar-nav {
+  align-items: stretch;
+  padding-top: 12px;
+}
+
+.app-shell.sidebar-collapsed .sidebar-footer {
+  padding-inline: 0;
+}
+
+.app-shell.sidebar-collapsed .sidebar-footer-meta {
+  opacity: 1;
+}
+
+.app-shell.sidebar-collapsed .sidebar-nav-item {
+  width: 100%;
+  min-height: 62px;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0 0 0 14px;
+}
+
+.app-shell.sidebar-collapsed .sidebar-nav-item.active {
+  border-left-color: transparent;
+  box-shadow: none;
+}
+
+.app-shell.sidebar-collapsed .nav-icon {
+  width: 28px;
+}
+
+.topbar-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topbar-update-button {
+  position: relative;
+  color: var(--accent);
+}
+
+.topbar-update-button.hidden {
+  display: none !important;
+}
+
+.topbar-update-button svg,
+.target-panel-back svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.topbar-update-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.topbar-update-button .update-dot {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 0 3px var(--control-bg), 0 0 12px rgba(91, 210, 138, 0.55);
+}
+
+body[data-theme] .topbar.has-update {
+  grid-template-columns:
+    minmax(190px, 0.82fr)
+    1px
+    minmax(250px, 1fr)
+    minmax(250px, 1fr)
+    1px
+    auto;
+}
+
+.target-panel-back {
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  min-height: 34px;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.target-panel-back svg {
+  width: 18px;
+  height: 18px;
+}
+
+.target-panel-back:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .target-panel-back {
+  color: var(--text-secondary);
+}
+
+body[data-theme] .target-panel-back:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}

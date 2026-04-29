@@ -1,0 +1,262 @@
+/* Final token-driven app UI layer. Keep OSD styling in osd-and-controls.css. */
+body[data-theme] .sidebar-nav-item {
+  color: var(--text-secondary);
+}
+
+body[data-theme] .sidebar-nav-item .nav-icon {
+  color: var(--text-muted);
+}
+
+body[data-theme] .sidebar-nav-item:hover {
+  background: var(--control-bg-hover);
+  color: var(--text-primary);
+}
+
+body[data-theme] .sidebar-nav-item.active {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text-primary);
+}
+
+body[data-theme] .sidebar-nav-item.active .nav-icon {
+  color: var(--accent);
+}
+
+body[data-theme] .app-page .connections-sidebar {
+  background: var(--surface-raised);
+  border-right-color: var(--control-border);
+}
+
+body[data-theme] .app-page .connections-content {
+  background: var(--surface);
+}
+
+body[data-theme] .connections-nav-item {
+  color: var(--text-secondary);
+}
+
+body[data-theme] .connections-nav-item:hover {
+  background: var(--control-bg-hover);
+  color: var(--text-primary);
+}
+
+body[data-theme] .connections-nav-item.active {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--text-primary);
+}
+
+body[data-theme] .connections-nav-indicator {
+  background: var(--surface-muted);
+  border: 1px solid var(--accent);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+body[data-theme] .connection-item-header,
+body[data-theme] .plugins-manager-row,
+body[data-theme] .plugins-store-row,
+body[data-theme] .connection-description,
+body[data-theme] .connection-status {
+  background: var(--surface-raised);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .connection-name,
+body[data-theme] .plugins-manager-row-name,
+body[data-theme] .plugins-store-row-name {
+  color: var(--text-primary);
+}
+
+body[data-theme] .plugins-manager-row-meta,
+body[data-theme] .plugins-store-row-meta,
+body[data-theme] .plugins-store-row-desc,
+body[data-theme] .connection-description p,
+body[data-theme] .plugins-manager-status,
+body[data-theme] .plugins-store-status,
+body[data-theme] .plugins-manager-loading,
+body[data-theme] .plugins-store-empty,
+body[data-theme] .connection-placeholder p {
+  color: var(--text-muted);
+}
+
+body[data-theme] .plugins-store-search,
+body[data-theme] .connection-button,
+body[data-theme] .plugins-manager-add,
+body[data-theme] .plugins-manager-uninstall,
+body[data-theme] .settings-action,
+body[data-theme] .settings-reset,
+body[data-theme] .settings-mini-toggle {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .connection-button:hover,
+body[data-theme] .plugins-manager-add:hover,
+body[data-theme] .plugins-manager-uninstall:hover,
+body[data-theme] .settings-action:hover,
+body[data-theme] .settings-mini-toggle:hover {
+  background: var(--control-bg-hover);
+  border-color: var(--control-border-strong);
+}
+
+body[data-theme] .settings-reset,
+body[data-theme] .connection-button.danger,
+body[data-theme] .plugins-manager-uninstall {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+body[data-theme] .settings-reset:hover,
+body[data-theme] .connection-button.danger:hover,
+body[data-theme] .plugins-manager-uninstall:hover {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+body[data-theme] .plugins-toggle-ui {
+  background: var(--slider-track);
+  border-color: var(--control-border);
+}
+
+body[data-theme] .plugins-toggle input:checked + .plugins-toggle-ui {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+body[data-theme] .plugins-toggle input:checked + .plugins-toggle-ui::after {
+  background: var(--accent);
+}
+
+body[data-theme] .settings-maintenance-section,
+body[data-theme] .settings-updates-section {
+  background: var(--surface);
+  border-color: var(--control-border);
+}
+
+body[data-theme] .settings-title,
+body[data-theme] .settings-update-meta-label,
+body[data-theme] .settings-update-meta {
+  color: var(--text-secondary);
+}
+
+body[data-theme] .settings-inline-status.error {
+  color: var(--danger);
+}
+
+body[data-theme] .settings-inline-status.success,
+body[data-theme] .settings-update-status.success {
+  color: var(--success);
+}
+
+body[data-theme] .target-panel {
+  background: var(--overlay-bg);
+}
+
+body[data-theme] .target-panel-content,
+body[data-theme] .alert-panel-content,
+body[data-theme] .learn-panel-content {
+  background: var(--surface);
+  border-color: var(--control-border);
+  box-shadow: var(--shadow-raised);
+  color: var(--text-primary);
+}
+
+body[data-theme] .target-panel-header {
+  border-bottom-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .target-panel-close,
+body[data-theme] .target-panel-back {
+  color: var(--text-secondary);
+}
+
+body[data-theme] .target-panel-close:hover,
+body[data-theme] .target-panel-back:hover {
+  background: var(--control-bg-hover);
+  color: var(--text-primary);
+}
+
+body[data-theme] #target-panel .target-panel-content {
+  background: var(--surface);
+  border: 1px solid var(--control-border);
+}
+
+body[data-theme] .target-panel-search {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .target-panel-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+body[data-theme] .target-panel-search svg,
+body[data-theme] .target-card-description,
+body[data-theme] .target-panel-empty {
+  color: var(--text-muted);
+}
+
+body[data-theme] .target-panel-categories {
+  border-right-color: var(--control-border);
+}
+
+body[data-theme] .target-category {
+  color: var(--text-secondary);
+}
+
+body[data-theme] .target-category:hover {
+  background: var(--control-bg-hover);
+  color: var(--text-primary);
+}
+
+body[data-theme] .target-category.active {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-primary);
+}
+
+body[data-theme] .target-category.active .target-category-icon {
+  color: var(--accent);
+}
+
+body[data-theme] .target-category-indicator {
+  background: var(--surface-raised);
+  border-color: var(--control-border);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+body[data-theme] .target-category-count,
+body[data-theme] .target-card-tag,
+body[data-theme] .target-card-kind-badge {
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
+  color: var(--chip-text);
+}
+
+body[data-theme] .target-card-nav-meta {
+  color: var(--text-muted);
+}
+
+body[data-theme] .target-card-arrow {
+  color: var(--text-muted);
+}
+
+body[data-theme] .target-category.active .target-category-count {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--control-border));
+  color: var(--accent);
+}
+
+body[data-theme] .target-panel-empty {
+  border-color: var(--control-border);
+}
+
