@@ -4,6 +4,7 @@ use crate::bindings::{
 use crate::model::{self, MidiEvent};
 use crate::run_logger;
 use crate::AppState;
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
@@ -319,6 +320,7 @@ pub(crate) fn apply_midi_event(
     }
 
     let mut any_applied = false;
+    let mut integration_volume_batches: HashMap<String, Vec<serde_json::Value>> = HashMap::new();
     for (target_index, target) in targets.iter().enumerate() {
         match target {
             model::BindingTarget::Master => {
@@ -381,21 +383,25 @@ pub(crate) fn apply_midi_event(
                 kind,
                 data,
             } => {
-                let payload = serde_json::json!({
-                  "binding_id": binding.id,
-                  "action": "Volume",
-                  "value": volume,
-                  "target_index": target_index,
-                  "target_count": targets.len(),
-                  "is_primary_target": target_index == 0,
-                  "target": {
-                    "integration_id": integration_id,
-                    "kind": kind,
-                    "data": data,
-                  },
-                  "source": "midi_fader"
-                });
-                let _ = app.emit("integration_binding_triggered", payload);
+                let group_index = integration_volume_batches
+                    .get(integration_id)
+                    .map(|items| items.len())
+                    .unwrap_or(0);
+                integration_volume_batches
+                    .entry(integration_id.clone())
+                    .or_default()
+                    .push(serde_json::json!({
+                      "target": {
+                        "integration_id": integration_id,
+                        "kind": kind,
+                        "data": data,
+                      },
+                      "target_index": group_index,
+                      "target_count": 0,
+                      "is_primary_target": target_index == 0,
+                      "original_target_index": target_index,
+                      "binding_target_count": targets.len(),
+                    }));
                 any_applied = true;
             }
             model::BindingTarget::Unset
@@ -403,6 +409,31 @@ pub(crate) fn apply_midi_event(
             | model::BindingTarget::Hotkey
             | model::BindingTarget::OpenApplication => {}
         }
+    }
+
+    for (integration_id, mut grouped_targets) in integration_volume_batches {
+        let grouped_count = grouped_targets.len();
+        for (group_index, grouped_target) in grouped_targets.iter_mut().enumerate() {
+            if let Some(map) = grouped_target.as_object_mut() {
+                map.insert(
+                    "target_index".to_string(),
+                    serde_json::Value::Number((group_index as u64).into()),
+                );
+                map.insert(
+                    "target_count".to_string(),
+                    serde_json::Value::Number((grouped_count as u64).into()),
+                );
+            }
+        }
+        let payload = serde_json::json!({
+          "binding_id": binding.id,
+          "action": "Volume",
+          "value": volume,
+          "integration_id": integration_id,
+          "targets": grouped_targets,
+          "source": "midi_fader",
+        });
+        let _ = app.emit("integration_binding_triggered_batch", payload);
     }
 
     if !any_applied {
