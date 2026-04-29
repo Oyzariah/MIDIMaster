@@ -27,6 +27,11 @@ function integrationTargetKey(integration) {
   return `${id}:${kind}:${stableStringify(stableData)}`;
 }
 
+function getIntegrationTarget(target) {
+  if (!target || typeof target !== "object") return null;
+  return target.Integration || target.integration || null;
+}
+
 function normalizeSessionKey(session) {
   if (session?.process_path) {
     const filename = session.process_path.split(/[\\/]/).pop() || "";
@@ -203,7 +208,7 @@ export function createTargetCore({
     if (target === "Focus" || target.Focus !== undefined) return "::focus::";
     if (target === "MediaControl") return "::media-control::";
 
-    const integration = target.Integration || target.integration;
+    const integration = getIntegrationTarget(target);
     if (integration && integration.integration_id) {
       const key = integrationTargetKey(integration);
       if (key) {
@@ -265,6 +270,12 @@ export function createTargetCore({
     const k1 = resolveTargetKey(t1);
     const k2 = resolveTargetKey(t2);
     if (k1 && k2 && k1 === k2) return true;
+
+    // Integration labels are not unique across plugins or target kinds. For
+    // example, OBS and Wave Link can both expose a target named "Browser".
+    // Once stable integration keys differ, falling back to display labels would
+    // incorrectly mirror UI state between unrelated targets.
+    if (getIntegrationTarget(t1) || getIntegrationTarget(t2)) return false;
 
     const r1 = resolveOsdTarget(t1, focusSession);
     const r2 = resolveOsdTarget(t2, focusSession);
