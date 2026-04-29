@@ -2216,6 +2216,74 @@ body[data-theme] .target-panel-back:hover {
   color: var(--text-primary);
 }
 
+body[data-theme] #target-panel .target-panel-content {
+  background: var(--surface);
+  border: 1px solid var(--control-border);
+}
+
+body[data-theme] .target-panel-search {
+  background: var(--control-bg);
+  border-color: var(--control-border);
+  color: var(--text-primary);
+}
+
+body[data-theme] .target-panel-search:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+body[data-theme] .target-panel-search svg,
+body[data-theme] .target-card-description,
+body[data-theme] .target-panel-empty {
+  color: var(--text-muted);
+}
+
+body[data-theme] .target-panel-categories {
+  border-right-color: var(--control-border);
+}
+
+body[data-theme] .target-category {
+  color: var(--text-secondary);
+}
+
+body[data-theme] .target-category:hover {
+  background: var(--control-bg-hover);
+  color: var(--text-primary);
+}
+
+body[data-theme] .target-category.active {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-primary);
+}
+
+body[data-theme] .target-category.active .target-category-icon {
+  color: var(--accent);
+}
+
+body[data-theme] .target-category-indicator {
+  background: var(--surface-raised);
+  border-color: var(--control-border);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+body[data-theme] .target-category-count,
+body[data-theme] .target-card-tag {
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
+  color: var(--chip-text);
+}
+
+body[data-theme] .target-category.active .target-category-count {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--control-border));
+  color: var(--accent);
+}
+
+body[data-theme] .target-panel-empty {
+  border-color: var(--control-border);
+}
+
 /* Plugins Page Redesign */
 #plugins-page {
   gap: 12px;

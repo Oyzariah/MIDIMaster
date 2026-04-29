@@ -308,7 +308,18 @@
         </div>
         <button id="target-panel-close" type="button" class="target-panel-close">x</button>
       </div>
-      <div id="target-panel-list" class="target-panel-list"></div>
+      <div class="target-panel-search-shell">
+        <label class="target-panel-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="m21 21-4.3-4.3M11 18a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z" />
+          </svg>
+          <input id="target-panel-search" type="search" placeholder="Search targets..." autocomplete="off" />
+        </label>
+      </div>
+      <div class="target-panel-body">
+        <div id="target-panel-categories" class="target-panel-categories" aria-label="Target categories"></div>
+        <div id="target-panel-list" class="target-panel-list"></div>
+      </div>
     </div>
   </div>
 

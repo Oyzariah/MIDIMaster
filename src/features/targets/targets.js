@@ -136,6 +136,158 @@ export function createTargetsFeature({
     return fallback;
   }
 
+  const INTEGRATION_META = {
+    obs: {
+      description: "Control OBS scenes, sources, and recording actions.",
+      tags: ["Streaming", "Utilities"],
+    },
+    hue: {
+      description: "Control lights, brightness, and color scenes.",
+      tags: ["Lighting"],
+    },
+    wavelink: {
+      description: "Adjust channel levels and mute states.",
+      tags: ["Audio"],
+    },
+  };
+
+  const CATEGORY_META = {
+    all: { label: "All Targets", icon: "all" },
+    builtIn: { label: "Built-in", icon: "built-in" },
+    utilities: { label: "Utilities", icon: "utilities" },
+    integrations: { label: "Integrations", icon: "integrations" },
+    applications: { label: "Applications", icon: "applications" },
+    playback: { label: "Playback Devices", icon: "playback" },
+    recording: { label: "Recording Devices", icon: "recording" },
+    devices: { label: "Devices", icon: "devices" },
+    actions: { label: "Actions", icon: "actions" },
+    other: { label: "Other", icon: "other" },
+  };
+
+  function targetPanelParts() {
+    const panel = d.targetPanel || null;
+    return {
+      searchInput: panel?.querySelector?.("#target-panel-search") || null,
+      categories: panel?.querySelector?.("#target-panel-categories") || null,
+    };
+  }
+
+  function categoryForOption(option, fallback = "other") {
+    if (!option || option.kind === "divider") return null;
+    if (option.category) return option.category;
+    if (option.kind === "master" || option.kind === "focus") return "builtIn";
+    if (option.kind === "media-control" || option.kind === "hotkey-target" || option.kind === "open-application-target") return "utilities";
+    if (option.kind === "integration-root" || option.kind === "integration-target" || option.kind === "integration-nav") return "integrations";
+    if (option.kind === "session") return "applications";
+    if (option.kind === "device") {
+      const value = String(option.value || "");
+      if (value.startsWith("playback:")) return "playback";
+      if (value.startsWith("recording:")) return "recording";
+      return "devices";
+    }
+    if (option.kind === "action") return "actions";
+    if (option.kind === "placeholder") return fallback;
+    return fallback;
+  }
+
+  function descriptionForOption(option, category) {
+    if (option?.description) return String(option.description);
+    if (option?.kind === "master") return "Global master output for all bindings.";
+    if (option?.kind === "focus") return "Currently focused application or audio session.";
+    if (option?.kind === "media-control") return "Control playback actions from a button binding.";
+    if (option?.kind === "hotkey-target") return "Trigger a keyboard shortcut from a button binding.";
+    if (option?.kind === "open-application-target") return "Launch a selected application from a button binding.";
+    if (option?.kind === "session") return option.ghost ? "Saved application target is currently unavailable." : "Application audio session.";
+    if (option?.kind === "device") return option.ghost ? "Saved device target is currently unavailable." : "Audio device endpoint.";
+    if (option?.kind === "integration-root") {
+      const meta = INTEGRATION_META[String(option.value || "").toLowerCase()];
+      return meta?.description || "Open integration targets.";
+    }
+    if (option?.kind === "integration-target") return "";
+    if (option?.kind === "integration-nav") return "Open this integration group.";
+    if (option?.kind === "action") return "";
+    if (option?.kind === "placeholder") return "";
+    return CATEGORY_META[category]?.label || "";
+  }
+
+  function tagsForOption(option, category) {
+    const tags = [];
+    const add = (value) => {
+      const text = String(value || "").trim();
+      if (text && !tags.some((tag) => tag.toLowerCase() === text.toLowerCase())) {
+        tags.push(text);
+      }
+    };
+    if (option?.ghost) add("Unavailable");
+
+    const meta = option?.kind === "integration-root"
+      ? INTEGRATION_META[String(option.value || "").toLowerCase()]
+      : null;
+    (option?.tags || meta?.tags || []).forEach(add);
+    return tags;
+  }
+
+  function optionSearchText(option) {
+    return [
+      option?.label,
+      option?.value,
+      option?.kind,
+      option?.categoryLabel,
+      option?.description,
+      ...(Array.isArray(option?.tags) ? option.tags : []),
+    ].filter(Boolean).join(" ").toLowerCase();
+  }
+
+  function normalizePanelOptions(options) {
+    let currentDivider = null;
+    const normalized = [];
+    for (const option of options || []) {
+      if (!option || typeof option !== "object") continue;
+      if (option.kind === "divider") {
+        currentDivider = String(option.label || "").trim();
+        continue;
+      }
+      const category = categoryForOption(option, "other");
+      const meta = CATEGORY_META[category] || CATEGORY_META.other;
+      const next = {
+        ...option,
+        category,
+        categoryLabel: meta.label,
+      };
+      if (!next.description) {
+        next.description = descriptionForOption(next, category);
+      }
+      next.tags = tagsForOption(next, category);
+      if (currentDivider && !next.sectionLabel) {
+        next.sectionLabel = currentDivider;
+      }
+      next.searchText = optionSearchText(next);
+      normalized.push(next);
+    }
+    return normalized;
+  }
+
+  function categorySvg(kind) {
+    if (kind === "built-in") return "<path d='M12 5v14M8 8h8M8 16h8' />";
+    if (kind === "utilities") return "<path d='M4 7h16M7 4v6M17 14v6M4 17h16' />";
+    if (kind === "integrations") return "<path d='M8 8h8v8H8z' /><path d='M12 3v5M12 16v5M3 12h5M16 12h5' />";
+    if (kind === "applications") return "<path d='M4 5h16v14H4z' /><path d='M4 9h16' />";
+    if (kind === "playback") return "<path d='M5 8v8h4l6 4V4L9 8H5z' />";
+    if (kind === "recording") return "<path d='M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3Z' /><path d='M6 11a6 6 0 0 0 12 0M12 17v3' />";
+    if (kind === "devices") return "<path d='M5 6h14v10H5z' /><path d='M9 20h6M12 16v4' />";
+    if (kind === "actions") return "<path d='M8 5v14l11-7Z' />";
+    if (kind === "other") return "<circle cx='12' cy='12' r='7' /><path d='M12 9v3M12 15h.01' />";
+    return "<path d='M4 5h7v7H4zM13 5h7v7h-7zM4 14h7v5H4zM13 14h7v5h-7z' />";
+  }
+
+  function createCategoryIcon(icon) {
+    const wrap = document.createElement("span");
+    wrap.className = "target-category-icon";
+    wrap.setAttribute("aria-hidden", "true");
+    wrap.innerHTML = `<svg viewBox="0 0 24 24" focusable="false">${categorySvg(icon)}</svg>`;
+    return wrap;
+  }
+
   function closeTargetPanel() {
     if (!d.targetPanel) {
       return;
@@ -144,6 +296,9 @@ export function createTargetsFeature({
     if (d.targetPanelList) {
       d.targetPanelList.innerHTML = "";
     }
+    const { searchInput, categories } = targetPanelParts();
+    if (searchInput) searchInput.value = "";
+    if (categories) categories.innerHTML = "";
     activeTargetPanelSelect = null;
     activeTargetPanelBack = null;
 
@@ -159,6 +314,10 @@ export function createTargetsFeature({
     }
     activeTargetPanelSelect = onSelect;
     activeTargetPanelBack = nav && typeof nav === "object" ? (nav.onBack || null) : null;
+    const { searchInput, categories } = targetPanelParts();
+    const normalizedOptions = normalizePanelOptions(options);
+    let activeCategory = "all";
+    let categoryIndicatorRaf = 0;
 
     if (d.targetPanelBack) {
       if (typeof activeTargetPanelBack === "function") {
@@ -175,29 +334,58 @@ export function createTargetsFeature({
     }
 
     d.targetPanelList.innerHTML = "";
+    if (categories) {
+      categories.innerHTML = "";
+    }
+    if (searchInput) {
+      searchInput.value = "";
+    }
     if (d.targetPanelTitle) {
       d.targetPanelTitle.textContent = title;
     }
-    (options || []).forEach((option) => {
-      if (option.kind === "divider") {
-        const divider = document.createElement("div");
-        divider.className = "target-divider";
-        divider.textContent = option.label;
-        d.targetPanelList.appendChild(divider);
-        return;
-      }
+
+    const renderOption = (option) => {
       const item = document.createElement("button");
       item.type = "button";
-      item.className = "target-option";
+      item.className = "target-option target-card";
       item.appendChild(createTargetIcon(option));
+
+      const copy = document.createElement("span");
+      copy.className = "target-card-copy";
+
+      const titleRow = document.createElement("span");
+      titleRow.className = "target-card-title-row";
+
       const label = document.createElement("span");
       label.className = "target-label";
       renderLabelFromRawWithTags(label, {
         rawLabel: option.label,
         extraTags: [],
-        truncateMain: false,
+        truncateMain: true,
       });
-      item.appendChild(label);
+      titleRow.appendChild(label);
+      copy.appendChild(titleRow);
+
+      if (option.description) {
+        const description = document.createElement("span");
+        description.className = "target-card-description";
+        description.textContent = option.description;
+        copy.appendChild(description);
+      }
+
+      if (Array.isArray(option.tags) && option.tags.length > 0) {
+        const tagRow = document.createElement("span");
+        tagRow.className = "target-card-tags";
+        option.tags.slice(0, 4).forEach((tag) => {
+          const pill = document.createElement("span");
+          pill.className = "target-card-tag";
+          pill.textContent = tag;
+          tagRow.appendChild(pill);
+        });
+        copy.appendChild(tagRow);
+      }
+
+      item.appendChild(copy);
       item.classList.toggle(
         "selected",
         option.value === selectedValue && option.kind === selectedKind,
@@ -223,7 +411,107 @@ export function createTargetsFeature({
         closeTargetPanel();
       });
       d.targetPanelList.appendChild(item);
-    });
+    };
+
+    const render = () => {
+      const query = String(searchInput?.value || "").trim().toLowerCase();
+      const filtered = normalizedOptions.filter((option) => {
+        const matchesCategory = activeCategory === "all" || option.category === activeCategory;
+        const matchesSearch = !query || option.searchText.includes(query);
+        return matchesCategory && matchesSearch;
+      });
+
+      d.targetPanelList.innerHTML = "";
+      if (filtered.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "target-panel-empty";
+        empty.textContent = query ? "No targets match your search." : "No targets available.";
+        d.targetPanelList.appendChild(empty);
+        return;
+      }
+      filtered.forEach(renderOption);
+    };
+
+    const syncCategoryIndicator = () => {
+      if (!categories) return;
+      const indicator = categories.querySelector(".target-category-indicator");
+      const active = categories.querySelector(".target-category.active");
+      if (!indicator || !active) {
+        if (indicator) indicator.style.opacity = "0";
+        return;
+      }
+      const parentRect = categories.getBoundingClientRect();
+      const activeRect = active.getBoundingClientRect();
+      indicator.style.width = `${activeRect.width}px`;
+      indicator.style.height = `${activeRect.height}px`;
+      indicator.style.transform = `translate(${activeRect.left - parentRect.left + categories.scrollLeft}px, ${activeRect.top - parentRect.top + categories.scrollTop}px)`;
+      indicator.style.opacity = "1";
+      requestAnimationFrame(() => indicator.classList.add("is-ready"));
+    };
+
+    const scheduleCategoryIndicatorSync = () => {
+      if (categoryIndicatorRaf) {
+        cancelAnimationFrame(categoryIndicatorRaf);
+      }
+      categoryIndicatorRaf = requestAnimationFrame(() => {
+        categoryIndicatorRaf = 0;
+        syncCategoryIndicator();
+      });
+    };
+
+    const renderCategories = () => {
+      if (!categories) return;
+      categories.innerHTML = "";
+      const indicator = document.createElement("div");
+      indicator.className = "target-category-indicator";
+      indicator.setAttribute("aria-hidden", "true");
+      categories.appendChild(indicator);
+      const counts = new Map();
+      normalizedOptions.forEach((option) => {
+        counts.set(option.category, (counts.get(option.category) || 0) + 1);
+      });
+      const categoryIds = ["all", ...Object.keys(CATEGORY_META).filter((id) => id !== "all" && counts.has(id))];
+      categoryIds.forEach((id) => {
+        const meta = CATEGORY_META[id] || CATEGORY_META.other;
+        const count = id === "all" ? normalizedOptions.length : (counts.get(id) || 0);
+        if (count === 0) return;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "target-category";
+        button.classList.toggle("active", id === activeCategory);
+        button.appendChild(createCategoryIcon(meta.icon));
+
+        const label = document.createElement("span");
+        label.className = "target-category-label";
+        label.textContent = meta.label;
+        button.appendChild(label);
+
+        const countEl = document.createElement("span");
+        countEl.className = "target-category-count";
+        countEl.textContent = String(count);
+        button.appendChild(countEl);
+
+        button.addEventListener("click", (event) => {
+          event.preventDefault();
+          activeCategory = id;
+          categories.querySelectorAll(".target-category").forEach((item) => {
+            item.classList.toggle("active", item === button);
+          });
+          scheduleCategoryIndicatorSync();
+          render();
+        });
+        categories.appendChild(button);
+      });
+      categories.onscroll = scheduleCategoryIndicatorSync;
+      scheduleCategoryIndicatorSync();
+    };
+
+    if (searchInput) {
+      searchInput.oninput = render;
+      setTimeout(() => searchInput.focus(), 0);
+    }
+    renderCategories();
+    render();
     d.targetPanel.classList.remove("hidden");
   }
 
