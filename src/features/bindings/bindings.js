@@ -1873,6 +1873,10 @@ export function createBindingsFeature({
           const isObsMomentary = obsBehavior === "momentary";
           const isStatefulButton = isObsStateful || (!obsBehavior && !isMomentaryButton);
           const isMomentaryPress = isObsMomentary || (!obsBehavior && isMomentaryButton);
+          pulse.classList.add(
+            "binding-button-value",
+            isStatefulButton ? "binding-button-value--stateful" : "binding-button-value--momentary",
+          );
           pulse.classList.toggle("is-active", isStatefulButton && buttonFillActive(binding, isMuted));
           pulse.dataset.bindingId = binding.id;
           pulse.title = isStatefulButton ? "Toggle binding" : "Trigger binding";
