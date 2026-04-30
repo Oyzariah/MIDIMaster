@@ -208,6 +208,10 @@ export function createBindingsFeature({
 
   function buttonFillActive(binding, fallbackMuted = false) {
     if (!binding) return false;
+    if (binding.action === "ToggleMute") {
+      if (bindingMuteValues[binding.id] != null) return Boolean(bindingMuteValues[binding.id]);
+      return Boolean(fallbackMuted);
+    }
     if (bindingLastValues[binding.id] != null) return Number(bindingLastValues[binding.id]) > 0.5;
     if (bindingMuteValues[binding.id] != null) return Boolean(bindingMuteValues[binding.id]);
     return Boolean(fallbackMuted);

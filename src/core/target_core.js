@@ -62,6 +62,7 @@ function withUnavailableSuffix(label) {
 export function createTargetCore({
   masterIconData,
   focusIconData,
+  mediaPlayPauseIconData,
   getSessions,
   getPlaybackDevices,
   getRecordingDevices,
@@ -97,7 +98,7 @@ export function createTargetCore({
         };
       }
       if (target === "MediaControl") {
-        return { label: "Media Controls", icon_data: null };
+        return { label: "Media Controls", icon_data: mediaPlayPauseIconData || null };
       }
       if (target === "Unset") {
         return null;

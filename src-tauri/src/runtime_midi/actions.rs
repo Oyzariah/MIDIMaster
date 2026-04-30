@@ -1,3 +1,4 @@
+use crate::bindings::BindingKey;
 use crate::model::{self, Binding, BindingTarget, MidiEvent};
 use crate::run_logger;
 use crate::runtime_helpers::{send_hotkey, send_media_key};
@@ -5,6 +6,36 @@ use crate::AppState;
 use std::path::Path;
 use std::process::Command as ProcessCommand;
 use tauri::{AppHandle, Emitter};
+
+fn emit_button_feedback(
+    state: &AppState,
+    app: &AppHandle,
+    binding: &Binding,
+    event: &MidiEvent,
+    targets: &[BindingTarget],
+    value: f32,
+) {
+    let key = BindingKey::from_event(event);
+    if let Ok(mut feedback) = state.feedback_values.lock() {
+        feedback.insert(key, value);
+    }
+    if let Ok(mut midi) = state.midi.lock() {
+        let _ = midi.send_feedback(
+            &binding.device_id,
+            binding.control.channel,
+            binding.control.controller,
+            value,
+            binding.control.msg_type.clone(),
+        );
+    }
+    let payload = serde_json::json!({
+      "target": targets.first().unwrap_or(&BindingTarget::Unset),
+      "volume": value,
+      "binding_id": binding.id,
+      "source": "button_feedback",
+    });
+    let _ = app.emit("volume_update", payload);
+}
 
 pub(super) fn handle_special_action(
     state: &AppState,
@@ -22,6 +53,7 @@ pub(super) fn handle_special_action(
             | model::BindingAction::MediaStop
     ) {
         if event.value == 0 {
+            emit_button_feedback(state, app, binding, event, targets, 0.0);
             run_logger::debug(
                 "bindings",
                 "media_action_ignored_release",
@@ -29,6 +61,7 @@ pub(super) fn handle_special_action(
             );
             return Ok(true);
         }
+        emit_button_feedback(state, app, binding, event, targets, 1.0);
         let vk: u16 = match binding.action {
             model::BindingAction::MediaPlayPause => 0xB3,
             model::BindingAction::MediaNextTrack => 0xB0,
@@ -50,6 +83,7 @@ pub(super) fn handle_special_action(
 
     if binding.action == model::BindingAction::Hotkey {
         if event.value == 0 {
+            emit_button_feedback(state, app, binding, event, targets, 0.0);
             run_logger::debug(
                 "bindings",
                 "hotkey_action_ignored_release",
@@ -57,6 +91,7 @@ pub(super) fn handle_special_action(
             );
             return Ok(true);
         }
+        emit_button_feedback(state, app, binding, event, targets, 1.0);
         if let Some(hotkey) = &binding.hotkey {
             if !hotkey.keys.is_empty() {
                 send_hotkey(&hotkey.keys);
@@ -75,6 +110,7 @@ pub(super) fn handle_special_action(
 
     if binding.action == model::BindingAction::OpenApplication {
         if event.value == 0 {
+            emit_button_feedback(state, app, binding, event, targets, 0.0);
             run_logger::debug(
                 "bindings",
                 "open_application_ignored_release",
@@ -82,6 +118,7 @@ pub(super) fn handle_special_action(
             );
             return Ok(true);
         }
+        emit_button_feedback(state, app, binding, event, targets, 1.0);
 
         let Some(open_app) = binding.open_application.as_ref() else {
             run_logger::warn(
@@ -156,6 +193,7 @@ pub(super) fn handle_special_action(
 
     if binding.action == model::BindingAction::SetDefaultDevice {
         if event.value == 0 {
+            emit_button_feedback(state, app, binding, event, targets, 0.0);
             run_logger::debug(
                 "bindings",
                 "set_default_device_ignored_release",
@@ -163,6 +201,7 @@ pub(super) fn handle_special_action(
             );
             return Ok(true);
         }
+        emit_button_feedback(state, app, binding, event, targets, 1.0);
 
         let mut any_applied = false;
         for target in targets {

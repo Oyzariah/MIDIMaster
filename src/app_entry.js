@@ -474,6 +474,7 @@ function updateIntegrationStateFromEventPayload(payload) {
 const targetCore = createTargetCore({
   masterIconData,
   focusIconData,
+  mediaPlayPauseIconData,
   getSessions: () => sessions,
   getPlaybackDevices: () => playbackDevices,
   getRecordingDevices: () => recordingDevices,
@@ -1751,6 +1752,10 @@ async function setupListeners() {
 
     if (payload.binding_id != null && typeof payload.muted === "boolean") {
       bindingMuteValues[payload.binding_id] = payload.muted;
+      const fill = document.querySelector(`.binding-momentary-value[data-binding-id="${payload.binding_id}"]`);
+      if (fill) {
+        fill.classList.toggle("is-active", payload.muted);
+      }
     }
 
     // Update inline mute buttons.

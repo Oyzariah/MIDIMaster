@@ -1156,7 +1156,12 @@ export function createTargetsFeature({
             { label: "Media Stop", value: "MediaStop", kind: "action", icon_data: mediaStopIconData },
           ];
         }
-        if (targetOption?.kind === "master" || targetOption?.kind === "focus") {
+        if (
+          targetOption?.kind === "master"
+          || targetOption?.kind === "focus"
+          || targetOption?.kind === "session"
+          || targetOption?.kind === "application"
+        ) {
           return [{
             label: "Toggle Mute",
             value: "ToggleMute",
