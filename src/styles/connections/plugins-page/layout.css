@@ -405,7 +405,7 @@
 
 #plugins-page .plugins-browser-card {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) 144px;
+  grid-template-columns: 58px minmax(0, 1fr) 168px;
   gap: 12px;
   padding: 12px 14px;
   min-height: 108px;
@@ -498,3 +498,10 @@
 #plugins-page .plugins-browser-card-actions {
   display: flex;
   flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  justify-content: flex-start;
+  min-height: 100%;
+  width: 168px;
+  min-width: 168px;
+}

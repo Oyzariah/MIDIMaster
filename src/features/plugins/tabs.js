@@ -510,6 +510,14 @@ export function createPluginsTabs({ invoke, getPluginHost, reloadPlugins, showCo
       topActionsEl.className = "plugins-browser-card-action-row";
       actionsEl.appendChild(topActionsEl);
 
+      const panelSlotEl = document.createElement("div");
+      panelSlotEl.className = "plugins-browser-action-slot plugins-browser-action-slot--panel";
+      topActionsEl.appendChild(panelSlotEl);
+
+      const toggleSlotEl = document.createElement("div");
+      toggleSlotEl.className = "plugins-browser-action-slot plugins-browser-action-slot--toggle";
+      topActionsEl.appendChild(toggleSlotEl);
+
       if (actionLabel) {
         const primaryAction = document.createElement("button");
         primaryAction.type = "button";
@@ -524,10 +532,10 @@ export function createPluginsTabs({ invoke, getPluginHost, reloadPlugins, showCo
             await runEntryAction(entry, "install-store", setStatus);
           });
         }
-        topActionsEl.appendChild(primaryAction);
+        panelSlotEl.appendChild(primaryAction);
       }
 
-      if (pluginPanelTabId) {
+      if (!actionLabel && pluginPanelTabId) {
         const panelButton = document.createElement("button");
         panelButton.type = "button";
         panelButton.className = "plugins-browser-action is-panel";
@@ -537,12 +545,12 @@ export function createPluginsTabs({ invoke, getPluginHost, reloadPlugins, showCo
             onOpenPluginPanel(pluginPanelTabId);
           }
         });
-        topActionsEl.appendChild(panelButton);
-      } else if (entry.isInstalled) {
+        panelSlotEl.appendChild(panelButton);
+      } else if (!actionLabel && entry.isInstalled) {
         const panelSpacer = document.createElement("div");
         panelSpacer.className = "plugins-browser-action-spacer";
         panelSpacer.setAttribute("aria-hidden", "true");
-        topActionsEl.appendChild(panelSpacer);
+        panelSlotEl.appendChild(panelSpacer);
       }
 
       if (entry.isInstalled && !entry.bundled) {
@@ -566,7 +574,7 @@ export function createPluginsTabs({ invoke, getPluginHost, reloadPlugins, showCo
           uninstallButton.disabled = true;
           await runEntryAction(entry, "uninstall", setStatus);
         });
-        topActionsEl.appendChild(uninstallButton);
+        actionsEl.appendChild(uninstallButton);
       }
 
       if (entry.isInstalled) {
@@ -584,12 +592,12 @@ export function createPluginsTabs({ invoke, getPluginHost, reloadPlugins, showCo
             await runEntryAction(entry, "toggle", setStatus);
           });
         }
-        actionsEl.appendChild(toggle);
+        toggleSlotEl.appendChild(toggle);
       } else {
         const toggleSpacer = document.createElement("div");
         toggleSpacer.className = "plugins-browser-toggle-spacer";
         toggleSpacer.setAttribute("aria-hidden", "true");
-        actionsEl.appendChild(toggleSpacer);
+        toggleSlotEl.appendChild(toggleSpacer);
       }
 
       listEl.appendChild(row);
