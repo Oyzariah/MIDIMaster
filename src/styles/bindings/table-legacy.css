@@ -389,12 +389,16 @@ body.dark-mode:not([data-theme]) .target-chip-remove:hover {
   text-overflow: ellipsis;
 }
 
+.target-tag[title] {
+  cursor: default;
+}
+
 .binding-row .target-chip {
   max-width: 100%;
 }
 
 .binding-row .target-chip .target-tag {
-  max-width: 56px;
+  max-width: 104px;
   padding: 1px 4px;
   font-size: 8px;
 }

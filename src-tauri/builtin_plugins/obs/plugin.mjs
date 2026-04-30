@@ -13,7 +13,6 @@ const FEEDBACK_INTENT_HOLD_MS = 1200;
 const FEEDBACK_INTENT_MATCH_EPSILON = 0.02;
 const VOLUME_WRITE_INTERVAL_MS = 16;
 const VOLUME_WRITE_EPSILON = 0.002;
-
 function isOsdWindow() {
   try {
     return new URLSearchParams(window.location.search).get("osd") === "1";
@@ -134,6 +133,8 @@ export async function activate(ctx) {
   let bindings = [];
   let bindingsByInputVolume = new Map(); // inputName -> Set(bindingId)
   let bindingsByInputMute = new Map();
+  let bindingsBySourceVisibility = new Map(); // sceneName\0sourceName -> Set(bindingId)
+  const statefulActionFeedback = new Map(); // bindingId -> last latched value fallback
   const lastLocalWriteAt = new Map(); // inputName -> ms
   const localVolumeIntentByBinding = new Map(); // bindingId -> { value, at }
   const pendingVolumeWrites = new Map(); // inputName -> volume
@@ -193,22 +194,32 @@ export async function activate(ctx) {
   function rebuildBindingIndex() {
     bindingsByInputVolume = new Map();
     bindingsByInputMute = new Map();
+    bindingsBySourceVisibility = new Map();
 
     for (const b of bindings) {
       const t = b?.target?.Integration || b?.target?.integration;
       if (!t || t.integration_id !== "obs") continue;
-      if (t.kind !== "input") continue;
-      const inputName = t.data?.input_name;
-      if (!inputName) continue;
 
       const action = b.action || "Volume";
-      if (action === "Volume") {
-        if (!bindingsByInputVolume.has(inputName)) bindingsByInputVolume.set(inputName, new Set());
-        bindingsByInputVolume.get(inputName).add(b.id);
+      if (t.kind === "input") {
+        const inputName = t.data?.input_name;
+        if (!inputName) continue;
+        if (action === "Volume") {
+          if (!bindingsByInputVolume.has(inputName)) bindingsByInputVolume.set(inputName, new Set());
+          bindingsByInputVolume.get(inputName).add(b.id);
+        }
+        if (action === "ToggleMute") {
+          if (!bindingsByInputMute.has(inputName)) bindingsByInputMute.set(inputName, new Set());
+          bindingsByInputMute.get(inputName).add(b.id);
+        }
       }
-      if (action === "ToggleMute") {
-        if (!bindingsByInputMute.has(inputName)) bindingsByInputMute.set(inputName, new Set());
-        bindingsByInputMute.get(inputName).add(b.id);
+      if (t.kind === "source" && action === "ToggleMute") {
+        const sceneName = t.data?.scene_name;
+        const sourceName = t.data?.source_name;
+        if (!sceneName || !sourceName) continue;
+        const key = sourceVisibilityKey(sceneName, sourceName);
+        if (!bindingsBySourceVisibility.has(key)) bindingsBySourceVisibility.set(key, new Set());
+        bindingsBySourceVisibility.get(key).add(b.id);
       }
     }
   }
@@ -226,12 +237,24 @@ export async function activate(ctx) {
     return map[a] || a;
   }
 
+  function momentaryAction(label, value = "Volume") {
+    return { label, value, behavior: "momentary" };
+  }
+
+  function statefulAction(label, value = "ToggleMute") {
+    return { label, value, behavior: "stateful" };
+  }
+
+  function obsActionKind(action) {
+    return String(action || "").startsWith("Toggle") ? "stateful" : "momentary";
+  }
+
   function makeActionTarget(action) {
-    return { Integration: { integration_id: "obs", kind: "action", data: { action } } };
+    return { Integration: { integration_id: "obs", kind: "action", data: { action, action_kind: obsActionKind(action) } } };
   }
 
   function makeSceneTarget(sceneName) {
-    return { Integration: { integration_id: "obs", kind: "scene", data: { scene_name: String(sceneName) } } };
+    return { Integration: { integration_id: "obs", kind: "scene", data: { scene_name: String(sceneName), action_kind: "momentary" } } };
   }
 
   function makeSourceToggleTarget(sceneName, sourceName) {
@@ -242,9 +265,14 @@ export async function activate(ctx) {
         data: {
           scene_name: String(sceneName),
           source_name: String(sourceName),
+          action_kind: "stateful",
         },
       },
     };
+  }
+
+  function sourceVisibilityKey(sceneName, sourceName) {
+    return `${String(sceneName || "")}\u0000${String(sourceName || "")}`;
   }
 
   function shouldIgnoreEcho(inputName) {
@@ -285,6 +313,10 @@ export async function activate(ctx) {
           targetCount: Number(entry?.target_count ?? rawTargets.length),
           isPrimaryTarget: entry?.is_primary_target === true,
           originalTargetIndex: Number(entry?.original_target_index ?? entry?.target_index ?? index),
+          momentaryTrigger: entry?.momentary_trigger,
+          buttonEvent: entry?.button_event,
+          buttonActionKind: entry?.button_action_kind,
+          buttonInputActive: entry?.button_input_active,
         };
       })
       .filter(Boolean);
@@ -384,6 +416,47 @@ export async function activate(ctx) {
     return queuedAny;
   }
 
+  function buttonEvent(payload) {
+    const explicit = String(payload?.button_event || "").toLowerCase();
+    if (explicit === "press" || explicit === "release") return explicit;
+    if (payload?.momentary_trigger === false) return "release";
+    if (payload?.momentary_trigger === true) return "press";
+    return clamp01(payload?.value) > 0.0 ? "press" : "release";
+  }
+
+  async function setMomentaryFeedback(bindingId, action, active) {
+    if (!bindingId) return;
+    await ctx.feedback.set(bindingId, active ? 1.0 : 0.0, action);
+  }
+
+  async function readStatefulActionValue(action) {
+    try {
+      if (action === "ToggleRecord") {
+        const status = await request("GetRecordStatus");
+        return Boolean(status?.outputActive);
+      }
+      if (action === "ToggleStream") {
+        const status = await request("GetStreamStatus");
+        return Boolean(status?.outputActive);
+      }
+      if (action === "ToggleVirtualCam") {
+        const status = await request("GetVirtualCamStatus");
+        return Boolean(status?.outputActive);
+      }
+      if (action === "ToggleReplayBuffer") {
+        const status = await request("GetReplayBufferStatus");
+        return Boolean(status?.outputActive);
+      }
+      if (action === "ToggleStudioMode") {
+        const status = await request("GetStudioModeEnabled");
+        return Boolean(status?.studioModeEnabled);
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
+
   async function syncAllFeedback(opts = null) {
     if (!connected) return;
     const silent = opts && typeof opts === "object" ? Boolean(opts.silent) : true;
@@ -420,6 +493,34 @@ export async function activate(ctx) {
       } catch {
         // ignore
       }
+    }
+
+    const scenesWithVisibilityBindings = new Set(
+      Array.from(bindingsBySourceVisibility.keys()).map((key) => key.split("\u0000")[0]).filter(Boolean),
+    );
+    for (const sceneName of scenesWithVisibilityBindings) {
+      await syncSourceVisibilityForScene(sceneName, { silent });
+    }
+  }
+
+  async function syncSourceVisibilityForScene(sceneName, opts = null) {
+    if (!connected || !sceneName) return;
+    const silent = opts && typeof opts === "object" ? Boolean(opts.silent) : true;
+    try {
+      const list = await request("GetSceneItemList", { sceneName });
+      const items = Array.isArray(list.sceneItems) ? list.sceneItems : [];
+      for (const item of items) {
+        const sourceName = item?.sourceName;
+        if (!sourceName) continue;
+        const set = bindingsBySourceVisibility.get(sourceVisibilityKey(sceneName, sourceName));
+        if (!set) continue;
+        const enabled = Boolean(item.sceneItemEnabled);
+        for (const bid of set) {
+          await ctx.feedback.set(bid, enabled ? 1.0 : 0.0, "ToggleMute", { silent });
+        }
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -676,6 +777,9 @@ export async function activate(ctx) {
         if (type === "CurrentProgramSceneChanged") {
           if (data.sceneName != null) currentScene = String(data.sceneName);
         }
+        if (type === "SceneItemEnableStateChanged" && data.sceneName != null) {
+          syncSourceVisibilityForScene(String(data.sceneName), { silent: true }).catch(() => {});
+        }
         if (
           type === "InputCreated"
           || type === "InputRemoved"
@@ -774,13 +878,147 @@ export async function activate(ctx) {
     }
   })();
 
+  async function handleObsBindingTrigger(payload) {
+    const bindingId = payload?.binding_id;
+    const action = payload?.action;
+    const value = payload?.value;
+    const isPrimaryTarget = payload?.is_primary_target !== false;
+    const targetIndex = Number(payload?.target_index ?? 0);
+    const targetCount = Number(payload?.target_count ?? 1);
+    const target = payload?.target || {};
+    const kind = target.kind;
+    const data = target.data || {};
+
+    if (!connected) return;
+
+    if (kind === "input") {
+      const inputName = data.input_name;
+      if (!inputName) return;
+      if (action === "Volume") {
+        applyObsVolumeBatch({
+          binding_id: bindingId,
+          action,
+          value,
+          targets: [{
+            target,
+            target_index: targetIndex,
+            target_count: targetCount,
+            is_primary_target: isPrimaryTarget,
+          }],
+        });
+      } else if (action === "ToggleMute") {
+        const muted = clamp01(value) > 0.5;
+        lastLocalWriteAt.set(String(inputName), Date.now());
+        await request("SetInputMute", { inputName, inputMuted: muted });
+        knownMutes.set(String(inputName), muted);
+        if (bindingId) await ctx.feedback.set(bindingId, muted ? 1.0 : 0.0, action);
+      }
+      return;
+    }
+
+    if (kind === "action") {
+      const a = data.action;
+      if (!a) return;
+      const stateful = String(data.action_kind || "").toLowerCase() === "stateful"
+        || String(payload?.button_action_kind || "").toLowerCase() === "stateful"
+        || obsActionKind(a) === "stateful";
+      const eventKind = buttonEvent(payload);
+      if (stateful) {
+        if (eventKind !== "press") return;
+      } else {
+        if (eventKind === "release") {
+          await setMomentaryFeedback(bindingId, action, false);
+          return;
+        }
+        await setMomentaryFeedback(bindingId, action, true);
+      }
+      const map = {
+        StartRecord: "StartRecord",
+        StopRecord: "StopRecord",
+        ToggleRecord: "ToggleRecord",
+        ToggleStream: "ToggleStream",
+        ToggleVirtualCam: "ToggleVirtualCam",
+        ToggleReplayBuffer: "ToggleReplayBuffer",
+      };
+      let actionResponse = null;
+      let expectedState = null;
+      if (a === "ToggleStudioMode") {
+        const cur = await request("GetStudioModeEnabled");
+        expectedState = !Boolean(cur.studioModeEnabled);
+        await request("SetStudioModeEnabled", { studioModeEnabled: expectedState });
+      } else if (map[a]) {
+        actionResponse = await request(map[a]);
+      }
+      if (stateful) {
+        if (actionResponse && typeof actionResponse.outputActive === "boolean") {
+          expectedState = actionResponse.outputActive;
+        }
+        if (expectedState == null) {
+          await sleep(120);
+        }
+        const active = expectedState == null ? await readStatefulActionValue(a) : expectedState;
+        const previous = bindingId ? statefulActionFeedback.get(bindingId) : undefined;
+        const feedbackValue = active == null ? !Boolean(previous) : active;
+        if (bindingId) statefulActionFeedback.set(bindingId, feedbackValue);
+        if (bindingId) await ctx.feedback.set(bindingId, feedbackValue ? 1.0 : 0.0, action);
+      }
+      return;
+    }
+
+    if (kind === "scene") {
+      const eventKind = buttonEvent(payload);
+      if (eventKind === "release") {
+        await setMomentaryFeedback(bindingId, action, false);
+        return;
+      }
+      await setMomentaryFeedback(bindingId, action, true);
+      const sceneName = data.scene_name;
+      if (!sceneName) return;
+      await request("SetCurrentProgramScene", { sceneName });
+      currentScene = String(sceneName);
+      return;
+    }
+
+    if (kind === "source") {
+      const sceneName = data.scene_name;
+      const sourceName = data.source_name;
+      if (!sceneName || !sourceName) return;
+
+      const list = await request("GetSceneItemList", { sceneName });
+      const items = Array.isArray(list.sceneItems) ? list.sceneItems : [];
+      const item = items.find((i) => i && i.sourceName === sourceName);
+      if (!item) return;
+      const enabled = clamp01(value) > 0.5;
+      await request("SetSceneItemEnabled", {
+        sceneName,
+        sceneItemId: item.sceneItemId,
+        sceneItemEnabled: enabled,
+      });
+      if (bindingId) await ctx.feedback.set(bindingId, enabled ? 1.0 : 0.0, action);
+      return;
+    }
+
+    if (kind === "media") {
+      const eventKind = buttonEvent(payload);
+      if (eventKind === "release") {
+        await setMomentaryFeedback(bindingId, action, false);
+        return;
+      }
+      await setMomentaryFeedback(bindingId, action, true);
+      const inputName = data.source_name;
+      const mediaAction = data.action;
+      if (!inputName || !mediaAction) return;
+      await request("TriggerMediaInputAction", { inputName, mediaAction });
+    }
+  }
+
   ctx.registerIntegration({
     id: "obs",
     name: "OBS Studio",
     icon_data: iconDataUrl || null,
     buttonActions: [
-      { label: "Trigger", value: "Volume" },
-      { label: "Toggle Mute", value: "ToggleMute" },
+      momentaryAction("Trigger", "Volume"),
+      statefulAction("Toggle Mute", "ToggleMute"),
     ],
     describeTarget: (target) => {
       const t = target?.Integration || target?.integration;
@@ -848,7 +1086,7 @@ export async function activate(ctx) {
           label: String(sceneName),
           icon_data: iconDataUrl || null,
           target: makeSceneTarget(sceneName),
-          buttonActions: [{ label: "Switch Scene", value: "Volume" }],
+          buttonActions: [momentaryAction("Switch Scene", "Volume")],
         });
 
         // Fetch scene items live so the list matches OBS state.
@@ -863,7 +1101,7 @@ export async function activate(ctx) {
               label: String(sourceName),
               icon_data: iconDataUrl || null,
               target: makeSourceToggleTarget(sceneName, sourceName),
-              buttonActions: [{ label: "Toggle Visibility", value: "ToggleMute" }],
+              buttonActions: [statefulAction("Toggle Visibility", "ToggleMute")],
             });
           }
         } catch {
@@ -886,11 +1124,16 @@ export async function activate(ctx) {
         "ToggleStudioMode",
       ];
       for (const a of actions) {
+        const actionKind = obsActionKind(a);
         opts.push({
           label: titleCaseAction(a),
           icon_data: iconDataUrl || null,
           target: makeActionTarget(a),
-          buttonActions: [{ label: titleCaseAction(a), value: "Volume" }],
+          buttonActions: [
+            actionKind === "stateful"
+              ? statefulAction(titleCaseAction(a), "Volume")
+              : momentaryAction(titleCaseAction(a), "Volume"),
+          ],
         });
       }
 
@@ -917,7 +1160,7 @@ export async function activate(ctx) {
           label: String(name),
           icon_data: iconDataUrl || null,
           target: { Integration: { integration_id: "obs", kind: "input", data: { input_name: String(name) } } },
-          buttonActions: [{ label: "Toggle Mute", value: "ToggleMute" }],
+          buttonActions: [statefulAction("Toggle Mute", "ToggleMute")],
         });
       }
 
@@ -930,110 +1173,42 @@ export async function activate(ctx) {
       if (!connected) return;
       if (payload?.action !== "Volume") return;
       try {
-        applyObsVolumeBatch(payload);
+        const batchTargets = normalizeBatchTargets(payload);
+        const inputTargets = batchTargets.filter((entry) => entry.target?.kind === "input");
+        const otherTargets = batchTargets.filter((entry) => entry.target?.kind !== "input");
+        if (inputTargets.length > 0) {
+          applyObsVolumeBatch({
+            ...payload,
+            targets: inputTargets.map((entry) => ({
+              target: entry.target,
+              target_index: entry.targetIndex,
+              target_count: entry.targetCount,
+              is_primary_target: entry.isPrimaryTarget,
+              original_target_index: entry.originalTargetIndex,
+            })),
+          });
+        }
+        for (const entry of otherTargets) {
+          await handleObsBindingTrigger({
+            ...payload,
+            target: entry.target,
+            target_index: entry.targetIndex,
+            target_count: entry.targetCount,
+            is_primary_target: entry.isPrimaryTarget,
+            original_target_index: entry.originalTargetIndex,
+            momentary_trigger: entry.momentaryTrigger,
+            button_event: entry.buttonEvent,
+            button_action_kind: entry.buttonActionKind,
+            button_input_active: entry.buttonInputActive,
+          });
+        }
       } catch {
         pendingVolumeWrites.clear();
       }
     },
     onBindingTriggered: async (payload) => {
-      const bindingId = payload?.binding_id;
-      const action = payload?.action;
-      const value = payload?.value;
-      const isPrimaryTarget = payload?.is_primary_target !== false;
-      const targetIndex = Number(payload?.target_index ?? 0);
-      const targetCount = Number(payload?.target_count ?? 1);
-      const target = payload?.target || {};
-      const kind = target.kind;
-      const data = target.data || {};
-
-      if (!connected) return;
-
       try {
-        if (kind === "input") {
-          const inputName = data.input_name;
-          if (!inputName) return;
-          if (action === "Volume") {
-            applyObsVolumeBatch({
-              binding_id: bindingId,
-              action,
-              value,
-              targets: [{
-                target,
-                target_index: targetIndex,
-                target_count: targetCount,
-                is_primary_target: isPrimaryTarget,
-              }],
-            });
-          } else if (action === "ToggleMute") {
-            const muted = clamp01(value) > 0.5;
-            lastLocalWriteAt.set(String(inputName), Date.now());
-            await request("SetInputMute", { inputName, inputMuted: muted });
-            knownMutes.set(String(inputName), muted);
-            if (bindingId) await ctx.feedback.set(bindingId, muted ? 1.0 : 0.0, action);
-          }
-          return;
-        }
-
-        if (kind === "action") {
-          if (clamp01(value) <= 0.0) return;
-          const a = data.action;
-          if (!a) return;
-          // Map to request types
-          const map = {
-            StartRecord: "StartRecord",
-            StopRecord: "StopRecord",
-            ToggleRecord: "ToggleRecord",
-            ToggleStream: "ToggleStream",
-            ToggleVirtualCam: "ToggleVirtualCam",
-            ToggleReplayBuffer: "ToggleReplayBuffer",
-          };
-          if (a === "ToggleStudioMode") {
-            const cur = await request("GetStudioModeEnabled");
-            await request("SetStudioModeEnabled", { studioModeEnabled: !cur.studioModeEnabled });
-          } else if (map[a]) {
-            await request(map[a]);
-          }
-          if (bindingId) await ctx.feedback.set(bindingId, 1.0, action);
-          return;
-        }
-
-        if (kind === "scene") {
-          if (clamp01(value) <= 0.0) return;
-          const sceneName = data.scene_name;
-          if (!sceneName) return;
-          await request("SetCurrentProgramScene", { sceneName });
-          currentScene = String(sceneName);
-          if (bindingId) await ctx.feedback.set(bindingId, 1.0, action);
-          return;
-        }
-
-        if (kind === "source") {
-          if (clamp01(value) <= 0.0) return;
-          const sceneName = data.scene_name;
-          const sourceName = data.source_name;
-          if (!sceneName || !sourceName) return;
-
-          const list = await request("GetSceneItemList", { sceneName });
-          const items = Array.isArray(list.sceneItems) ? list.sceneItems : [];
-          const item = items.find((i) => i && i.sourceName === sourceName);
-          if (!item) return;
-          await request("SetSceneItemEnabled", {
-            sceneName,
-            sceneItemId: item.sceneItemId,
-            sceneItemEnabled: !item.sceneItemEnabled,
-          });
-          if (bindingId) await ctx.feedback.set(bindingId, 1.0, action);
-          return;
-        }
-
-        if (kind === "media") {
-          if (clamp01(value) <= 0.0) return;
-          const inputName = data.source_name;
-          const mediaAction = data.action;
-          if (!inputName || !mediaAction) return;
-          await request("TriggerMediaInputAction", { inputName, mediaAction });
-          if (bindingId) await ctx.feedback.set(bindingId, 1.0, action);
-        }
+        await handleObsBindingTrigger(payload);
       } catch (e) {
         // ignore
         pendingVolumeWrites.clear();

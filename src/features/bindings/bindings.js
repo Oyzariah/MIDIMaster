@@ -169,8 +169,57 @@ export function createBindingsFeature({
     if (effectiveIsButton(binding) && binding?.action === "ToggleMute") {
       return muteBehaviorLabel(binding?.mute_behavior);
     }
-    if (effectiveIsButton(binding)) return "Toggle";
+    if (effectiveIsButton(binding)) return muteBehaviorLabel(binding?.mute_behavior);
     return binding?.mode === "Relative" ? "Relative" : "Absolute";
+  }
+
+  function isMomentaryButtonBinding(binding) {
+    if (!effectiveIsButton(binding)) return false;
+    const target = getPrimaryTarget(binding);
+    const integration = target?.Integration || target?.integration;
+    const data = integration?.data || {};
+    if (
+      String(integration?.integration_id || "").toLowerCase() === "obs"
+      && String(integration?.kind || "").toLowerCase() === "action"
+      && String(data.action || "").startsWith("Toggle")
+    ) {
+      return false;
+    }
+    const actionKind = String(data.action_kind || "").toLowerCase();
+    if (actionKind === "momentary") return true;
+    if (actionKind === "stateful") return false;
+    return binding?.action !== "ToggleMute";
+  }
+
+  function obsButtonBehavior(binding) {
+    if (!effectiveIsButton(binding)) return null;
+    const target = getPrimaryTarget(binding);
+    const integration = target?.Integration || target?.integration;
+    if (String(integration?.integration_id || "").toLowerCase() !== "obs") return null;
+    const kind = String(integration?.kind || "").toLowerCase();
+    const data = integration?.data || {};
+    const actionKind = String(data.action_kind || "").toLowerCase();
+    if (actionKind === "stateful" || actionKind === "momentary") return actionKind;
+    if (binding?.action === "ToggleMute") return "stateful";
+    if (kind === "action" && String(data.action || "").startsWith("Toggle")) return "stateful";
+    if (kind === "action" || kind === "scene" || kind === "media") return "momentary";
+    return null;
+  }
+
+  function buttonFillActive(binding, fallbackMuted = false) {
+    if (!binding) return false;
+    if (bindingLastValues[binding.id] != null) return Number(bindingLastValues[binding.id]) > 0.5;
+    if (bindingMuteValues[binding.id] != null) return Boolean(bindingMuteValues[binding.id]);
+    return Boolean(fallbackMuted);
+  }
+
+  function pulseMomentaryValue(button) {
+    if (!button) return;
+    button.classList.add("is-active");
+    clearTimeout(button.__momentaryPulseTimer);
+    button.__momentaryPulseTimer = setTimeout(() => {
+      button.classList.remove("is-active");
+    }, 160);
   }
 
   function bindingSearchText(binding, index) {
@@ -220,6 +269,10 @@ export function createBindingsFeature({
       toggle.classList.toggle("on", nextMuted);
       toggle.title = label;
       toggle.setAttribute("aria-label", label);
+    }
+    const fill = row?.querySelector(".binding-momentary-value");
+    if (fill) {
+      fill.classList.toggle("is-active", nextMuted);
     }
   }
 
@@ -1491,10 +1544,8 @@ export function createBindingsFeature({
         ];
 
         let modeValue = "fader_abs";
-        if (effectiveIsButton(binding) && binding.action === "ToggleMute") {
+        if (effectiveIsButton(binding)) {
           modeValue = buttonModeValue(binding);
-        } else if (effectiveIsButton(binding)) {
-          modeValue = "button_toggle";
         } else if (binding.mode === "Relative") {
           modeValue = "fader_rel";
         }
@@ -1509,8 +1560,11 @@ export function createBindingsFeature({
 
         const applyModeSelection = async (nextModeValue) => {
           if (nextModeValue === "button_toggle" || nextModeValue === "button_match") {
+            const keepButtonAction = effectiveIsButton(binding) && binding.action !== "ToggleMute";
             binding.control_kind = "Button";
-            binding.action = "ToggleMute";
+            if (!keepButtonAction) {
+              binding.action = "ToggleMute";
+            }
             binding.mute_behavior = nextModeValue === "button_match" ? "SetFromValue" : "ToggleOnPress";
             if (binding.mute_control && typeof binding.mute_control === "object") {
               binding.mute_control.mute_behavior = binding.mute_behavior;
@@ -1730,6 +1784,8 @@ export function createBindingsFeature({
         const isMuted = (bindingMuteValues[binding.id] != null)
           ? Boolean(bindingMuteValues[binding.id])
           : Boolean(getMuted(primaryTarget));
+        const obsBehavior = obsButtonBehavior(binding);
+        const isMomentaryButton = obsBehavior ? obsBehavior === "momentary" : isMomentaryButtonBinding(binding);
         setMuteButtonState(muteButton, isMuted);
         muteButton.dataset.targetJson = JSON.stringify(primaryTarget);
         muteButton.dataset.bindingId = binding.id;
@@ -1806,17 +1862,115 @@ export function createBindingsFeature({
         valueGroup.className = "binding-value-cell";
         if (isButton) {
           valueGroup.classList.add("binding-value-cell--button");
-          const toggle = document.createElement("button");
-          toggle.type = "button";
-          toggle.className = "binding-toggle-value";
-          toggle.classList.toggle("on", isMuted);
-          toggle.title = isMuted ? "Unmute binding target" : "Mute binding target";
-          toggle.setAttribute("aria-label", toggle.title);
-          toggle.addEventListener("click", async () => {
-            muteButton.click();
+          const pulse = document.createElement("button");
+          pulse.type = "button";
+          pulse.className = "binding-momentary-value";
+          const isObsStateful = obsBehavior === "stateful";
+          const isObsMomentary = obsBehavior === "momentary";
+          const isStatefulButton = isObsStateful || (!obsBehavior && !isMomentaryButton);
+          const isMomentaryPress = isObsMomentary || (!obsBehavior && isMomentaryButton);
+          pulse.classList.toggle("is-active", isStatefulButton && buttonFillActive(binding, isMuted));
+          pulse.dataset.bindingId = binding.id;
+          pulse.title = isStatefulButton ? "Toggle binding" : "Trigger binding";
+          pulse.setAttribute("aria-label", pulse.title);
+
+          const invokeButtonValue = async (value) => {
+            await invoke("apply_binding_action", {
+              bindingId: binding.id,
+              action: binding.action || "Volume",
+              value,
+              silent: false,
+              source: "ui_button",
+            });
+          };
+
+          const releaseMomentary = async () => {
+            if (!pulse.__buttonPressed) return;
+            pulse.__buttonPressed = false;
+            pulse.classList.remove("is-active");
+            if (!isObsMomentary) return;
+            try {
+              await invokeButtonValue(0.0);
+            } catch (err) {
+              console.error("Failed to release binding:", err);
+            }
+          };
+
+          if (isStatefulButton) {
+            pulse.addEventListener("click", async () => {
+              bindingInteractionTimes[binding.id] = Date.now();
+              if (binding.action === "ToggleMute") {
+                muteButton.click();
+                return;
+              }
+              const currentlyOn = pulse.classList.contains("is-active");
+              pulse.classList.toggle("is-active", !currentlyOn);
+              bindingLastValues[binding.id] = currentlyOn ? 0.0 : 1.0;
+              try {
+                await invokeButtonValue(1.0);
+              } catch (err) {
+                pulse.classList.toggle("is-active", currentlyOn);
+                bindingLastValues[binding.id] = currentlyOn ? 1.0 : 0.0;
+                console.error("Failed to trigger toggle action:", err);
+              }
+            });
+          } else if (isObsMomentary) {
+            pulse.addEventListener("pointerdown", async (event) => {
+              event.preventDefault();
+              if (pulse.__buttonPressed) return;
+              pulse.__buttonPressed = true;
+              bindingInteractionTimes[binding.id] = Date.now();
+              pulse.classList.add("is-active");
+              try {
+                pulse.setPointerCapture?.(event.pointerId);
+              } catch {}
+              try {
+                await invokeButtonValue(1.0);
+              } catch (err) {
+                pulse.__buttonPressed = false;
+                pulse.classList.remove("is-active");
+                console.error("Failed to trigger binding:", err);
+              }
+            });
+            pulse.addEventListener("pointerup", releaseMomentary);
+            pulse.addEventListener("pointercancel", releaseMomentary);
+            pulse.addEventListener("lostpointercapture", releaseMomentary);
+          } else if (isMomentaryPress) {
+            pulse.addEventListener("click", async () => {
+              bindingInteractionTimes[binding.id] = Date.now();
+              pulseMomentaryValue(pulse);
+              try {
+                await invokeButtonValue(1.0);
+              } catch (err) {
+                console.error("Failed to trigger binding:", err);
+              }
+            });
+          }
+          pulse.addEventListener("keydown", async (event) => {
+            if (event.key !== " " && event.key !== "Enter") return;
+            if (!isObsMomentary || pulse.__buttonPressed) return;
+            event.preventDefault();
+            bindingInteractionTimes[binding.id] = Date.now();
+            pulse.__buttonPressed = true;
+            pulse.classList.add("is-active");
+            try {
+              await invokeButtonValue(1.0);
+            } catch (err) {
+              pulse.__buttonPressed = false;
+              pulse.classList.remove("is-active");
+              console.error("Failed to trigger binding:", err);
+            }
           });
-          valueGroup.appendChild(toggle);
-          valueGroup.appendChild(muteButton);
+          pulse.addEventListener("keyup", async (event) => {
+            if (event.key !== " " && event.key !== "Enter") return;
+            if (!isObsMomentary) return;
+            event.preventDefault();
+            await releaseMomentary();
+          });
+          valueGroup.appendChild(pulse);
+          if (binding.action === "ToggleMute") {
+            valueGroup.appendChild(muteButton);
+          }
         } else {
           const sliderWrap = document.createElement("div");
           sliderWrap.className = "binding-slider-wrap";

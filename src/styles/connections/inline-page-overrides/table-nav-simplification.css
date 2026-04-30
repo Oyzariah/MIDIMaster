@@ -519,6 +519,7 @@ body[data-theme] .binding-filter-button {
 body[data-theme] .binding-value-cell {
   gap: 8px;
   justify-content: start;
+  width: 100%;
 }
 
 body[data-theme] .binding-value-cell--button {
@@ -530,6 +531,26 @@ body[data-theme] .binding-value-cell--button .binding-toggle-value {
   width: 100%;
   min-width: 112px;
   max-width: none;
+}
+
+body[data-theme] .binding-value-cell--button .binding-momentary-value {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 112px;
+  max-width: none;
+}
+
+body[data-theme] .binding-momentary-value {
+  border-color: var(--control-border);
+  background: var(--slider-track);
+}
+
+body[data-theme] .binding-momentary-value::before {
+  background: var(--text-muted);
+}
+
+body[data-theme] .binding-momentary-value.is-active::before {
+  background: var(--accent);
 }
 
 body[data-theme] .binding-slider-wrap {

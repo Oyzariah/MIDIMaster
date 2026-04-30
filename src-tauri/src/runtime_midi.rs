@@ -15,6 +15,82 @@ mod aux_controls;
 #[path = "runtime_midi/learn.rs"]
 mod learn;
 
+fn binding_is_button(binding: &model::Binding) -> bool {
+    matches!(binding.control_kind, model::BindingControlKind::Button)
+        || (matches!(binding.control_kind, model::BindingControlKind::Auto)
+            && matches!(binding.control.msg_type, model::MidiMessageType::Note))
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum IntegrationButtonActionKind {
+    Stateful,
+    Momentary,
+}
+
+fn obs_action_is_stateful(action: &str) -> bool {
+    action.starts_with("Toggle")
+}
+
+fn integration_volume_button_action_kind(
+    integration_id: &str,
+    kind: &str,
+    data: &serde_json::Value,
+) -> Option<IntegrationButtonActionKind> {
+    if let Some(action_kind) = data.get("action_kind").and_then(|value| value.as_str()) {
+        if action_kind.eq_ignore_ascii_case("stateful") {
+            return Some(IntegrationButtonActionKind::Stateful);
+        }
+        if action_kind.eq_ignore_ascii_case("momentary") {
+            return Some(IntegrationButtonActionKind::Momentary);
+        }
+    }
+    if integration_id == "obs" && kind == "action" {
+        let action = data
+            .get("action")
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+        return Some(if obs_action_is_stateful(action) {
+            IntegrationButtonActionKind::Stateful
+        } else {
+            IntegrationButtonActionKind::Momentary
+        });
+    }
+    if integration_id == "obs" && matches!(kind, "scene" | "media") {
+        return Some(IntegrationButtonActionKind::Momentary);
+    }
+    None
+}
+
+fn resolve_integration_button_event(
+    state: &AppState,
+    key: &BindingKey,
+    binding: &model::Binding,
+    event: &MidiEvent,
+) -> Option<&'static str> {
+    let input_active = event.value > 0;
+    match binding.mute_behavior.clone() {
+        model::MuteBehavior::ToggleOnPress => Some(if input_active { "press" } else { "release" }),
+        model::MuteBehavior::SetFromValue => {
+            let previous = state
+                .last_mute_input_active
+                .lock()
+                .ok()
+                .and_then(|inputs| inputs.get(key).copied());
+            if let Ok(mut inputs) = state.last_mute_input_active.lock() {
+                inputs.insert(key.clone(), input_active);
+            }
+            let changed = previous
+                .map(|prev| prev != input_active)
+                .unwrap_or(input_active);
+            if changed {
+                Some(if input_active { "press" } else { "release" })
+            } else {
+                None
+            }
+        }
+    }
+}
+
 pub(crate) fn apply_midi_event(
     state: &AppState,
     app: &AppHandle,
@@ -321,6 +397,9 @@ pub(crate) fn apply_midi_event(
 
     let mut any_applied = false;
     let mut integration_volume_batches: HashMap<String, Vec<serde_json::Value>> = HashMap::new();
+    let mut button_event_for_event: Option<Option<&'static str>> = None;
+    let mut skipped_button_integration_event = false;
+    let mut integration_button_feedback_owned = false;
     for (target_index, target) in targets.iter().enumerate() {
         match target {
             model::BindingTarget::Master => {
@@ -383,6 +462,26 @@ pub(crate) fn apply_midi_event(
                 kind,
                 data,
             } => {
+                let integration_button_kind = if binding.action == model::BindingAction::Volume
+                    && binding_is_button(&binding)
+                {
+                    integration_volume_button_action_kind(integration_id, kind, data)
+                } else {
+                    None
+                };
+                let button_event = if integration_button_kind.is_some() {
+                    integration_button_feedback_owned = true;
+                    let resolved_event = *button_event_for_event.get_or_insert_with(|| {
+                        resolve_integration_button_event(state, &key, &binding, &event)
+                    });
+                    if resolved_event.is_none() {
+                        skipped_button_integration_event = true;
+                        continue;
+                    }
+                    resolved_event
+                } else {
+                    None
+                };
                 let group_index = integration_volume_batches
                     .get(integration_id)
                     .map(|items| items.len())
@@ -396,6 +495,12 @@ pub(crate) fn apply_midi_event(
                         "kind": kind,
                         "data": data,
                       },
+                      "button_event": button_event,
+                      "button_action_kind": integration_button_kind.map(|kind| match kind {
+                          IntegrationButtonActionKind::Stateful => "stateful",
+                          IntegrationButtonActionKind::Momentary => "momentary",
+                      }),
+                      "button_input_active": event.value > 0,
                       "target_index": group_index,
                       "target_count": 0,
                       "is_primary_target": target_index == 0,
@@ -431,12 +536,15 @@ pub(crate) fn apply_midi_event(
           "value": volume,
           "integration_id": integration_id,
           "targets": grouped_targets,
-          "source": "midi_fader",
+          "source": if integration_button_feedback_owned { "midi_button" } else { "midi_fader" },
         });
         let _ = app.emit("integration_binding_triggered_batch", payload);
     }
 
     if !any_applied {
+        if skipped_button_integration_event {
+            return Ok(());
+        }
         run_logger::warn(
             "bindings",
             "volume_no_target_applied",
@@ -445,22 +553,26 @@ pub(crate) fn apply_midi_event(
         return Ok(());
     }
 
-    if let Ok(mut feedback) = state.feedback_values.lock() {
-        feedback.insert(key.clone(), volume);
+    if !integration_button_feedback_owned {
+        if let Ok(mut feedback) = state.feedback_values.lock() {
+            feedback.insert(key.clone(), volume);
+        }
     }
 
     if let Ok(mut last_update) = state.osd_last_update.lock() {
         *last_update = Some(Instant::now());
     }
 
-    if let Ok(mut midi) = state.midi.lock() {
-        let _ = midi.send_feedback(
-            &binding.device_id,
-            binding.control.channel,
-            binding.control.controller,
-            volume,
-            binding.control.msg_type.clone(),
-        );
+    if !integration_button_feedback_owned {
+        if let Ok(mut midi) = state.midi.lock() {
+            let _ = midi.send_feedback(
+                &binding.device_id,
+                binding.control.channel,
+                binding.control.controller,
+                volume,
+                binding.control.msg_type.clone(),
+            );
+        }
     }
 
     let settings_enabled = state
@@ -480,10 +592,12 @@ pub(crate) fn apply_midi_event(
           "focus_session": focus_session,
           "binding_id": binding.id
         });
-        let _ = app.emit("volume_update", payload.clone());
+        if !integration_button_feedback_owned {
+            let _ = app.emit("volume_update", payload.clone());
 
-        if settings_enabled {
-            AppState::emit_osd_update(app, state, &payload, false);
+            if settings_enabled {
+                AppState::emit_osd_update(app, state, &payload, false);
+            }
         }
     }
 

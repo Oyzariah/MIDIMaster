@@ -847,6 +847,7 @@ export function createTargetsFeature({
     let hotkeyDisplay = String(currentHotkeyDisplay || "");
     const targetDisplayCache = new Map();
     let selectedAction = isBindingButton ? (currentAction || "ToggleMute") : "Volume";
+    let selectedActionKind = "";
     let selectedOpenApplication = isBindingButton
       ? normalizeOpenApplication(currentOpenApplication)
       : null;
@@ -862,6 +863,8 @@ export function createTargetsFeature({
     const integrationFromTarget = (target) => {
       return target?.Integration || target?.integration || null;
     };
+
+    selectedActionKind = String(integrationFromTarget(selectedTargets[0])?.data?.action_kind || "").trim();
 
       const actionLabel = (action, target = null) => {
         const integ = integrationFromTarget(target);
@@ -1013,6 +1016,9 @@ export function createTargetsFeature({
           if (option.__selectedActionValue) {
             next.Integration.data.action_value = String(option.__selectedActionValue);
           }
+          if (option.__selectedActionKind) {
+            next.Integration.data.action_kind = String(option.__selectedActionKind);
+          }
           return next;
         }
         return t;
@@ -1058,6 +1064,7 @@ export function createTargetsFeature({
       container.dataset.kind = selectedTargets.length ? "multi" : "placeholder";
       container.classList.toggle("target-unavailable", Boolean(markUnavailable && selectedTargets.length <= 1));
       container.dataset.action = selectedAction;
+      container.dataset.actionKind = selectedActionKind;
       setDisplay();
     };
 
@@ -1073,6 +1080,7 @@ export function createTargetsFeature({
       if (nextActionValue) {
         selectedAction = nextActionValue;
       }
+      selectedActionKind = String(actionChoice?.behavior || actionChoice?.action_kind || "").trim();
       if (nextActionValue !== "OpenApplication") {
         selectedOpenApplication = null;
       }
@@ -1087,6 +1095,9 @@ export function createTargetsFeature({
       }
       if (nextActionValue && option && typeof option === "object") {
         option.__selectedActionValue = nextActionValue;
+      }
+      if (selectedActionKind && option && typeof option === "object") {
+        option.__selectedActionKind = selectedActionKind;
       }
 
       const mapped = mapOptionToTarget(option);
@@ -1176,7 +1187,8 @@ export function createTargetsFeature({
             label: a.label || a.value || "Action",
             value: a.value || "Volume",
             kind: "action",
-            icon_data: a.icon_data || null,
+            icon_data: a.icon_data || targetOption.icon_data || null,
+            behavior: a.behavior || a.action_kind || "",
           }));
         }
 
@@ -1190,7 +1202,8 @@ export function createTargetsFeature({
               label: a.label || a.value || "Action",
               value: a.value || "Volume",
               kind: "action",
-              icon_data: a.icon_data || null,
+              icon_data: a.icon_data || targetOption.icon_data || null,
+              behavior: a.behavior || a.action_kind || "",
             }));
           }
         }

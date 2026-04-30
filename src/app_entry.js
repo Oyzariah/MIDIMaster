@@ -268,6 +268,10 @@ function setInlineMuteButtonState(button, muted) {
     toggle.title = label;
     toggle.setAttribute("aria-label", label);
   }
+  const fill = button.closest(".binding-row")?.querySelector(".binding-momentary-value");
+  if (fill) {
+    fill.classList.toggle("is-active", Boolean(muted));
+  }
 }
 
 function findInlineMuteButton(bindingId) {
@@ -1810,6 +1814,14 @@ async function setupListeners() {
 
     // 1. Direct update if ID available
     if (payload.binding_id) {
+      const momentary = document.querySelector(`.binding-momentary-value[data-binding-id="${payload.binding_id}"]`);
+      if (momentary) {
+        momentary.classList.toggle("is-active", Number(payload.volume) > 0.5);
+      }
+      const toggle = document.querySelector(`.binding-toggle-value[data-binding-id="${payload.binding_id}"]`);
+      if (toggle) {
+        toggle.classList.toggle("on", Number(payload.volume) > 0.5);
+      }
       const s = document.querySelector(`.binding-volume-slider[data-binding-id="${payload.binding_id}"]`);
       if (s) {
         const lastMidi = Number(s.dataset.lastMidiUpdate || 0);

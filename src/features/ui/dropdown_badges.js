@@ -41,6 +41,7 @@ export function renderLabelWithBadges(
       const el = document.createElement("span");
       el.className = `target-tag target-tag--${badge.kind}`;
       el.textContent = badge.text;
+      el.title = badge.text;
       tags.appendChild(el);
     });
     content.appendChild(tags);
