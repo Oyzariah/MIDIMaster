@@ -437,7 +437,7 @@
   box-shadow: none;
 }
 
-/* Keep legacy .disabled working as well (see rule above). */
+/* Keep .disabled working as well (see rule above). */
 .connection-button.disabled {
   background: #ccd1e0;
 }

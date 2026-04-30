@@ -1,7 +1,5 @@
-@import url("./bindings/table-legacy.css");
+@import url("./bindings/table-base.css");
 @import url("./bindings/target-panel.css");
-@import url("./bindings/settings-panel.css");
-@import url("./bindings/table-redesign.css");
+@import url("./bindings/table.css");
 @import url("./bindings/config-panel.css");
-@import url("./bindings/setup-and-binding-overrides.css");
-@import url("./bindings/final-overrides.css");
+@import url("./bindings/setup.css");

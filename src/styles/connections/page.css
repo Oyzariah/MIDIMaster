@@ -1,4 +1,4 @@
-/* Final inline plugins page overrides after legacy plugin styles */
+/* Inline plugins page rules after plugin styles */
 .app-page .connections-panel-content {
   width: 100%;
   height: 100%;
@@ -42,7 +42,7 @@ body.dark-mode:not([data-theme]) .app-page .connections-nav-item.active {
   box-shadow: none;
 }
 
-/* Final redesign polish: keep this after legacy component rules. */
+/* App polish after component rules. */
 body.dark-mode:not([data-theme]) .topbar {
   background: #11161d;
   border-bottom-color: #252c35;

@@ -1,4 +1,4 @@
-/* Focused UI cleanup: page chrome, profile menu, binding actions, settings groups. */
+/* Page chrome, profile menu, binding actions, and settings groups. */
 body[data-theme] .page-heading-row {
   min-height: 56px;
   margin: 0 0 8px;

@@ -1,4 +1,4 @@
-/* 2026 app shell redesign */
+/* 2026 app shell */
 :root {
   --control-h: 40px;
 }
@@ -40,7 +40,7 @@ body.dark-mode:not([data-theme="light"]) {
   --slider-thumb: var(--text-primary);
   --overlay-bg: rgba(7, 10, 14, 0.72);
 
-  /* Compatibility aliases while legacy selectors are retired. */
+  /* Compatibility aliases for existing selectors. */
   --text: var(--text-primary);
   --muted: var(--text-muted);
   --text-soft: var(--text-secondary);
@@ -85,7 +85,7 @@ body[data-theme="light"] {
   --slider-thumb: #f8fbfe;
   --overlay-bg: rgba(23, 34, 48, 0.36);
 
-  /* Compatibility aliases while legacy selectors are retired. */
+  /* Compatibility aliases for existing selectors. */
   --text: var(--text-primary);
   --muted: var(--text-muted);
   --text-soft: var(--text-secondary);

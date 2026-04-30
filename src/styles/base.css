@@ -1,4 +1,4 @@
-@import "./base/global-legacy.css";
-@import "./base/legacy-overrides.css";
+@import "./base/global.css";
+@import "./base/layout.css";
 @import "./base/app-shell.css";
 

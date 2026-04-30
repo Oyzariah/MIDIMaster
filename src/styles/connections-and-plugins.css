@@ -2,9 +2,8 @@
 @import url("./connections/obs.css");
 @import url("./connections/connections-panel.css");
 @import url("./connections/plugins-manager-store.css");
-@import url("./connections/inline-page-overrides.css");
+@import url("./connections/page.css");
 @import url("./connections/app-ui-layer.css");
 @import url("./connections/plugins-page.css");
-@import url("./connections/focused-ui-cleanup.css");
 @import url("./connections/plugin-content-safety.css");
-@import url("./connections/shell-refinements.css");
+@import url("./connections/shell.css");

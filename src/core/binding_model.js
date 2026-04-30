@@ -161,9 +161,7 @@ export function presetCurvePoints(curve) {
     case "Custom":
       return [
         { x: 0, y: 0 },
-        { x: 0.22, y: 0.34 },
-        { x: 0.5, y: 0.82 },
-        { x: 0.78, y: 0.3 },
+        { x: 0.5, y: 0.5 },
         { x: 1, y: 1 },
       ];
     case "Linear":

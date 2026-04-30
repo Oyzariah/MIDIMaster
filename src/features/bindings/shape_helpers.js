@@ -1,3 +1,15 @@
+import {
+  applyCustomFaderCurve,
+  applyFaderCurve,
+  getBindingTargets,
+  getPrimaryBindingTarget,
+  normalizeCustomCurvePoints,
+  normalizeFaderCurve as normalizeCoreFaderCurve,
+  normalizeRelativeFormat as normalizeCoreRelativeFormat,
+  presetCurvePoints as corePresetCurvePoints,
+  setBindingTargets,
+} from "../../core/binding_model.js";
+
 export function normalizeControlKind(raw) {
   const value = String(raw || "Auto");
   if (value === "Button" || value === "Continuous" || value === "Auto") {
@@ -7,9 +19,7 @@ export function normalizeControlKind(raw) {
 }
 
 export function normalizeRelativeFormat(raw) {
-  const value = String(raw || "Auto");
-  if (value === "Auto") return value;
-  return "Auto";
+  return normalizeCoreRelativeFormat(raw);
 }
 
 export function normalizeMuteBehavior(raw) {
@@ -49,10 +59,7 @@ export function assignModeTooltip(raw) {
 }
 
 export function normalizeFaderCurve(raw) {
-  const value = String(raw || "Linear");
-  return ["Linear", "Exponential", "Logarithmic", "SCurve", "Custom"].includes(value)
-    ? value
-    : "Linear";
+  return normalizeCoreFaderCurve(raw);
 }
 
 export function defaultCustomCurve() {
@@ -64,58 +71,14 @@ export function defaultCustomCurve() {
 }
 
 export function presetCurvePoints(curve) {
-  switch (normalizeFaderCurve(curve)) {
-    case "Exponential":
-      return [
-        { x: 0, y: 0 },
-        { x: 0.18, y: 0.04 },
-        { x: 0.42, y: 0.16 },
-        { x: 0.72, y: 0.5 },
-        { x: 1, y: 1 },
-      ];
-    case "Logarithmic":
-      return [
-        { x: 0, y: 0 },
-        { x: 0.08, y: 0.34 },
-        { x: 0.24, y: 0.58 },
-        { x: 0.52, y: 0.8 },
-        { x: 1, y: 1 },
-      ];
-    case "SCurve":
-      return [
-        { x: 0, y: 0 },
-        { x: 0.18, y: 0.06 },
-        { x: 0.5, y: 0.5 },
-        { x: 0.82, y: 0.94 },
-        { x: 1, y: 1 },
-      ];
-    case "Custom":
-      return defaultCustomCurve();
-    case "Linear":
-    default:
-      return [
-        { x: 0, y: 0 },
-        { x: 1, y: 1 },
-      ];
-  }
+  return corePresetCurvePoints(curve);
 }
 
 export function normalizeCustomCurve(points) {
-  const normalized = Array.isArray(points)
-    ? points
-        .map((point, index) => ({
-          x: Math.min(1, Math.max(0, Number(point?.x) || 0)),
-          y: Math.min(1, Math.max(0, Number(point?.y) || 0)),
-          index,
-        }))
-        .sort((a, b) => a.x - b.x)
-        .map(({ x, y }) => ({ x, y }))
-    : [];
+  const normalized = normalizeCustomCurvePoints(points);
   if (normalized.length < 2) {
     return defaultCustomCurve();
   }
-  normalized[0].x = 0;
-  normalized[normalized.length - 1].x = 1;
   return normalized;
 }
 
@@ -162,30 +125,9 @@ export function curveDisplayName(curve) {
 
 export function applyCurveToNormalized(binding, normalized) {
   const clamped = Math.min(1, Math.max(0, Number(normalized) || 0));
-  switch (normalizeFaderCurve(binding?.fader_curve)) {
-    case "Exponential":
-      return Math.pow(clamped, 0.55);
-    case "Logarithmic":
-      return Math.pow(clamped, 2.2);
-    case "SCurve":
-      return clamped * clamped * (3 - (2 * clamped));
-    case "Custom": {
-      const points = normalizeCustomCurve(binding?.custom_curve);
-      if (clamped <= points[0].x) return points[0].y;
-      for (let index = 0; index < points.length - 1; index += 1) {
-        const start = points[index];
-        const end = points[index + 1];
-        if (clamped > end.x) continue;
-        const span = end.x - start.x;
-        if (Math.abs(span) < 0.00001) return end.y;
-        const t = Math.min(1, Math.max(0, (clamped - start.x) / span));
-        return start.y + ((end.y - start.y) * t);
-      }
-      return points[points.length - 1].y;
-    }
-    default:
-      return clamped;
-  }
+  return normalizeFaderCurve(binding?.fader_curve) === "Custom"
+    ? applyCustomFaderCurve(normalizeCustomCurve(binding?.custom_curve), clamped)
+    : applyFaderCurve(binding?.fader_curve, clamped);
 }
 
 export function ensureBindingShape(binding) {
@@ -219,26 +161,15 @@ export function isOpenApplicationTarget(target) {
 }
 
 export function getTargets(binding) {
-  if (!binding || typeof binding !== "object") return [];
-  if (Array.isArray(binding.targets) && binding.targets.length > 0) {
-    const normalized = binding.targets.filter(Boolean).filter((t) => t !== "Unset").slice(0, 8);
-    if (normalized.length > 0) return normalized;
-  }
-  if (binding.target != null) {
-    return [binding.target];
-  }
-  return [];
+  return getBindingTargets(binding);
 }
 
 export function setTargets(binding, targets) {
-  const normalized = Array.isArray(targets) ? targets.filter(Boolean).slice(0, 8) : [];
-  if (normalized.length === 0) normalized.push("Unset");
-  binding.targets = normalized;
-  binding.target = normalized[0] || "Unset";
+  setBindingTargets(binding, targets);
 }
 
 export function getPrimaryTarget(binding) {
-  return getTargets(binding)[0] || "Unset";
+  return getPrimaryBindingTarget(binding);
 }
 
 export function ensureAuxShape(binding) {
