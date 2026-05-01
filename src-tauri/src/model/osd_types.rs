@@ -1,5 +1,17 @@
 use serde::{Deserialize, Serialize};
 
+fn default_osd_style() -> String {
+    "midnight".to_string()
+}
+
+fn default_opacity() -> f64 {
+    0.96
+}
+
+fn default_scale() -> f64 {
+    1.0
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OsdSettings {
     pub enabled: bool,
@@ -9,6 +21,12 @@ pub struct OsdSettings {
     #[serde(default)]
     pub monitor_id: Option<String>,
     pub anchor: String,
+    #[serde(default = "default_osd_style")]
+    pub style: String,
+    #[serde(default = "default_opacity")]
+    pub opacity: f64,
+    #[serde(default = "default_scale")]
+    pub scale: f64,
 }
 
 impl Default for OsdSettings {
@@ -19,6 +37,9 @@ impl Default for OsdSettings {
             monitor_name: None,
             monitor_id: None,
             anchor: "top-right".to_string(),
+            style: default_osd_style(),
+            opacity: default_opacity(),
+            scale: default_scale(),
         }
     }
 }

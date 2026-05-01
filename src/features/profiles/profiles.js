@@ -32,6 +32,9 @@ export function createProfilesFeature({
     enabled: true,
     monitorIndex: 0,
     anchor: "top-right",
+    style: "midnight",
+    opacity: 0.96,
+    scale: 1,
   };
 
   let pendingProfileDeleteName = null;
@@ -66,6 +69,9 @@ export function createProfilesFeature({
       monitor_name: current.monitorName || null,
       monitor_id: current.monitorId || null,
       anchor: current.anchor || defaults.anchor || "top-right",
+      style: current.style || defaults.style || "midnight",
+      opacity: Number(current.opacity ?? defaults.opacity ?? 0.96),
+      scale: Number(current.scale ?? defaults.scale ?? 1),
     };
   }
 
@@ -178,6 +184,9 @@ export function createProfilesFeature({
         monitorName: profile.osd_settings.monitor_name || null,
         monitorId: profile.osd_settings.monitor_id || null,
         anchor: profile.osd_settings.anchor || "top-right",
+        style: profile.osd_settings.style || defaults.style || "midnight",
+        opacity: Number(profile.osd_settings.opacity ?? defaults.opacity ?? 0.96),
+        scale: Number(profile.osd_settings.scale ?? defaults.scale ?? 1),
       };
       if (typeof setOsdSettings === "function") {
         setOsdSettings(nextOsd);

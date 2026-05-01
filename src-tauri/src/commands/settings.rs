@@ -75,17 +75,26 @@ pub fn update_osd_settings(
     monitor_name: Option<String>,
     monitor_id: Option<String>,
     anchor: String,
+    style: Option<String>,
+    opacity: Option<f64>,
+    scale: Option<f64>,
 ) -> Result<(), String> {
+    let next_style = normalize_osd_style(style.as_deref());
+    let next_opacity = opacity.unwrap_or(0.96).clamp(0.35, 1.0);
+    let next_scale = scale.unwrap_or(1.0).clamp(0.75, 1.5);
     run_logger::info(
         "settings",
         "update_osd_settings",
         &format!(
-            "enabled={} monitor_index={} monitor_name={} monitor_id={} anchor={}",
+            "enabled={} monitor_index={} monitor_name={} monitor_id={} anchor={} style={} opacity={} scale={}",
             enabled,
             monitor_index,
             monitor_name.as_deref().unwrap_or(""),
             monitor_id.as_deref().unwrap_or(""),
-            anchor
+            anchor,
+            next_style,
+            next_opacity,
+            next_scale
         ),
     );
     let mut settings = state
@@ -97,6 +106,9 @@ pub fn update_osd_settings(
     settings.monitor_name = monitor_name;
     settings.monitor_id = monitor_id;
     settings.anchor = anchor;
+    settings.style = next_style;
+    settings.opacity = next_opacity;
+    settings.scale = next_scale;
     let updated = settings.clone();
     drop(settings);
 
@@ -119,9 +131,20 @@ pub fn update_osd_settings(
             "monitor_name": updated.monitor_name,
             "monitor_id": updated.monitor_id,
             "anchor": updated.anchor,
+            "style": updated.style,
+            "opacity": updated.opacity,
+            "scale": updated.scale,
         }),
     );
     Ok(())
+}
+
+fn normalize_osd_style(style: Option<&str>) -> String {
+    let normalized = style.unwrap_or("midnight").trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "midnight" | "glass" | "neon" | "studio" => normalized,
+        _ => "midnight".to_string(),
+    }
 }
 
 #[tauri::command]

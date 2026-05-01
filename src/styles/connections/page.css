@@ -4,9 +4,9 @@
   height: 100%;
   max-height: none;
   min-height: 0;
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  background: var(--panel-bg-2);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 

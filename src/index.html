@@ -9,17 +9,12 @@
 </head>
 
 <body class="dark-mode" data-theme="dark">
-  <div class="app-shell">
+  <div class="app-shell sidebar-collapsed">
     <aside class="app-sidebar" aria-label="Primary navigation">
       <div class="sidebar-brand">
         <img class="app-logo app-logo--dark" src="assets/MIDIMaster.png" alt="MIDIMaster logo" />
         <img class="app-logo app-logo--light" src="assets/MIDIMaster-light.png" alt="" aria-hidden="true" />
         <span class="app-name">MIDIMaster</span>
-        <button id="sidebar-collapse-toggle" class="sidebar-collapse-toggle" type="button" aria-label="Collapse sidebar" title="Collapse sidebar" aria-pressed="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M14.5 6.5 9 12l5.5 5.5" />
-          </svg>
-        </button>
       </div>
 
       <nav class="sidebar-nav">
@@ -170,122 +165,327 @@
 
         <section id="settings-panel" class="app-page hidden" data-page-panel="settings">
           <div class="settings-panel-body">
-            <div class="settings-grid">
-              <div class="settings-section settings-osd-section">
-                <div class="settings-section-header">
-                  <div class="settings-title">On-screen Display</div>
-                  <label class="settings-toggle" title="Toggle on-screen display">
-                    <input id="osd-enabled" type="checkbox" />
-                    <span class="plugins-toggle-ui" aria-hidden="true"></span>
-                  </label>
-                </div>
-                <div class="settings-field-row">
-                  <div class="settings-field-label">Monitor</div>
-                  <select id="osd-monitor"></select>
-                </div>
-                <div class="settings-field-row settings-field-row--position">
-                  <div class="settings-field-label">Position</div>
-                  <div class="osd-position-picker" id="osd-position-picker">
-                    <div class="osd-position-screen"></div>
-                    <button type="button" class="osd-position-dot" data-anchor="top-left" aria-label="Top left"></button>
-                    <button type="button" class="osd-position-dot" data-anchor="top-center" aria-label="Top center"></button>
-                    <button type="button" class="osd-position-dot" data-anchor="top-right" aria-label="Top right"></button>
-                    <button type="button" class="osd-position-dot" data-anchor="center-left" aria-label="Center left"></button>
-                    <button type="button" class="osd-position-dot" data-anchor="center" aria-label="Center"></button>
-                    <button type="button" class="osd-position-dot" data-anchor="center-right" aria-label="Center right"></button>
-                    <button type="button" class="osd-position-dot" data-anchor="bottom-left" aria-label="Bottom left"></button>
-                    <button type="button" class="osd-position-dot" data-anchor="bottom-center" aria-label="Bottom center"></button>
-                    <button type="button" class="osd-position-dot" data-anchor="bottom-right" aria-label="Bottom right"></button>
+            <div class="settings-shell">
+              <aside class="settings-sidebar" aria-label="Settings sections">
+                <div class="settings-nav-indicator" aria-hidden="true"></div>
+                <nav class="settings-nav">
+                  <button class="settings-nav-item active" type="button" data-settings-section="startup" aria-current="page">
+                    <span class="settings-nav-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M6 4v16"></path>
+                        <path d="M12 4v16"></path>
+                        <path d="M18 4v16"></path>
+                        <path d="M4 8h4"></path>
+                        <path d="M10 15h4"></path>
+                        <path d="M16 11h4"></path>
+                      </svg>
+                    </span>
+                    <span class="settings-nav-label">General</span>
+                  </button>
+                  <button class="settings-nav-item" type="button" data-settings-section="osd">
+                    <span class="settings-nav-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M4 6h16v11H4z"></path>
+                        <path d="M9 20h6"></path>
+                        <path d="M12 17v3"></path>
+                      </svg>
+                    </span>
+                    <span class="settings-nav-label">On-Screen Display</span>
+                  </button>
+                  <button class="settings-nav-item" type="button" data-settings-section="maintenance">
+                    <span class="settings-nav-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4.8 16.2a2.1 2.1 0 0 0 3 3l4.5-4.5a4 4 0 0 0 5.4-5.4"></path>
+                        <path d="m14 7 3 3"></path>
+                      </svg>
+                    </span>
+                    <span class="settings-nav-label">Maintenance</span>
+                  </button>
+                </nav>
+              </aside>
+
+              <div class="settings-content">
+                <section class="settings-section settings-section-panel settings-general-section active" data-settings-panel="startup">
+                  <div class="settings-card settings-startup-card">
+                    <div class="settings-card-section-heading">
+                      <span class="settings-card-section-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                          <path d="M5 12a7 7 0 1 0 14 0 7 7 0 0 0-14 0Z"></path>
+                          <path d="M12 7v5l3 2"></path>
+                        </svg>
+                      </span>
+                      <span>Behavior</span>
+                    </div>
+                    <div class="settings-startup-row">
+                      <div class="settings-startup-row-main">
+                        <span class="settings-startup-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M12 3v7"></path>
+                            <path d="M7.05 6.35a8 8 0 1 0 9.9 0"></path>
+                          </svg>
+                        </span>
+                        <div class="settings-field-label">Start with Windows</div>
+                      </div>
+                      <label class="settings-toggle" title="Start with Windows">
+                        <input id="start-with-windows" type="checkbox" />
+                        <span class="plugins-toggle-ui" aria-hidden="true"></span>
+                      </label>
+                    </div>
+                    <div class="settings-startup-row">
+                      <div class="settings-startup-row-main">
+                        <span class="settings-startup-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M12 4v9"></path>
+                            <path d="m8.5 9.5 3.5 3.5 3.5-3.5"></path>
+                            <path d="M5 16h14l-1.5 4h-11L5 16Z"></path>
+                          </svg>
+                        </span>
+                        <div class="settings-field-label">Start in tray</div>
+                      </div>
+                      <label class="settings-toggle" title="Start in tray">
+                        <input id="start-in-tray" type="checkbox" />
+                        <span class="plugins-toggle-ui" aria-hidden="true"></span>
+                      </label>
+                    </div>
+                    <div class="settings-startup-row">
+                      <div class="settings-startup-row-main">
+                        <span class="settings-startup-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M5 6h14"></path>
+                            <path d="M9 11h6"></path>
+                            <path d="M12 13v5"></path>
+                            <path d="m9 16 3 3 3-3"></path>
+                          </svg>
+                        </span>
+                        <div class="settings-field-label">Minimize to tray</div>
+                      </div>
+                      <label class="settings-toggle" title="Minimize to tray">
+                        <input id="minimize-to-tray" type="checkbox" />
+                        <span class="plugins-toggle-ui" aria-hidden="true"></span>
+                      </label>
+                    </div>
+                    <div class="settings-startup-row">
+                      <div class="settings-startup-row-main">
+                        <span class="settings-startup-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M14 7h4v10h-4"></path>
+                            <path d="M10 9 7 12l3 3"></path>
+                            <path d="M7 12h9"></path>
+                          </svg>
+                        </span>
+                        <div class="settings-field-label">Exit to tray</div>
+                      </div>
+                      <label class="settings-toggle" title="Exit to tray">
+                        <input id="exit-to-tray" type="checkbox" />
+                        <span class="plugins-toggle-ui" aria-hidden="true"></span>
+                      </label>
+                    </div>
                   </div>
-                  <div class="settings-field-help">The display will appear in the selected corner of your screen.</div>
-                </div>
-              </div>
-              <div class="settings-section settings-general-section">
-                <div class="settings-title">General</div>
-                <div class="settings-field-row">
-                  <div class="settings-field-label">Start with Windows</div>
-                  <select id="start-with-windows">
-                    <option value="enabled">Enabled</option>
-                    <option value="disabled">Disabled</option>
-                  </select>
-                </div>
-                <div class="settings-field-row">
-                  <div class="settings-field-label">Start in tray</div>
-                  <select id="start-in-tray">
-                    <option value="enabled">Enabled</option>
-                    <option value="disabled">Disabled</option>
-                  </select>
-                </div>
-                <div class="settings-field-row">
-                  <div class="settings-field-label">Minimize to tray</div>
-                  <select id="minimize-to-tray">
-                    <option value="enabled">Enabled</option>
-                    <option value="disabled">Disabled</option>
-                  </select>
-                </div>
-                <div class="settings-field-row">
-                  <div class="settings-field-label">Exit to tray</div>
-                  <select id="exit-to-tray">
-                    <option value="enabled">Enabled</option>
-                    <option value="disabled">Disabled</option>
-                  </select>
-                </div>
-              </div>
-              <div class="settings-bottom-grid">
-                <div class="settings-section settings-maintenance-section settings-reset-section">
-                  <div class="settings-title">Maintenance</div>
-                  <button id="open-logs-folder" type="button" class="settings-action">
-                    <span class="settings-button-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" focusable="false">
-                        <path d="M3.75 7.75h5l1.75 2h9.75v8.5a2 2 0 0 1-2 2H5.75a2 2 0 0 1-2-2Z"></path>
-                        <path d="M3.75 7.75v-1a2 2 0 0 1 2-2h3.1l1.75 2H18.25a2 2 0 0 1 2 2v1"></path>
-                      </svg>
-                    </span>
-                    <span class="settings-button-label">Open Logs Folder</span>
-                  </button>
-                  <button id="reset-app-data" type="button" class="settings-reset">
-                    <span class="settings-button-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" focusable="false">
-                        <path d="M4.75 7.75h14.5"></path>
-                        <path d="M9.25 4.75h5.5"></path>
-                        <path d="M8 7.75v10.5a1.5 1.5 0 0 0 1.5 1.5h5a1.5 1.5 0 0 0 1.5-1.5V7.75"></path>
-                        <path d="M10 11v5"></path>
-                        <path d="M14 11v5"></path>
-                      </svg>
-                    </span>
-                    <span class="settings-button-label">Reset app data</span>
-                  </button>
-                  <div class="settings-field-help">Resetting app data will restore all settings to their default values.</div>
-                </div>
-                <div class="settings-section settings-updates-section">
-                  <div class="settings-update-header">
-                    <div class="settings-title">App Updates</div>
-                    <button id="auto-check-updates-button" type="button" class="settings-mini-toggle">
-                      <span class="settings-mini-toggle-label">Auto-check: On</span>
+
+                  <div class="settings-card settings-update-card">
+                    <div class="settings-card-section-heading">
+                      <span class="settings-card-section-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                          <path d="M20 5v5h-5"></path>
+                          <path d="M4 19v-5h5"></path>
+                          <path d="M6.75 9A7 7 0 0 1 18 6.5L20 10"></path>
+                          <path d="M17.25 15A7 7 0 0 1 6 17.5L4 14"></path>
+                        </svg>
+                      </span>
+                      <span>Updates</span>
+                    </div>
+                    <div class="settings-startup-row settings-update-toggle-row">
+                      <div class="settings-startup-row-main">
+                        <span class="settings-startup-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M12 5v4l2.5 2.5"></path>
+                            <path d="M20 12a8 8 0 1 1-2.35-5.65"></path>
+                            <path d="M20 4v5h-5"></path>
+                          </svg>
+                        </span>
+                        <div class="settings-field-label">Automatically check for updates</div>
+                      </div>
+                      <label class="settings-toggle" title="Automatically check for updates">
+                        <input id="auto-check-updates-button" type="checkbox" />
+                        <span class="plugins-toggle-ui" aria-hidden="true"></span>
+                      </label>
+                    </div>
+                    <div class="settings-update-summary">
+                      <div id="settings-update-status" class="settings-inline-status">
+                        <span class="settings-status-icon" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" focusable="false">
+                            <path d="M5 12.5 9.25 16.75 19 7"></path>
+                          </svg>
+                        </span>
+                        <span class="settings-status-text">No update check yet.</span>
+                      </div>
+                      <div class="settings-update-versions">
+                        <span>Current <strong id="update-current-version">-</strong></span>
+                        <span>Latest <strong id="update-latest-version">-</strong></span>
+                      </div>
+                    </div>
+                    <button id="check-for-updates" type="button" class="settings-action">
+                      <span class="settings-button-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" focusable="false">
+                          <path d="M20 5v5h-5"></path>
+                          <path d="M4 19v-5h5"></path>
+                          <path d="M6.75 9A7 7 0 0 1 18 6.5L20 10"></path>
+                          <path d="M17.25 15A7 7 0 0 1 6 17.5L4 14"></path>
+                        </svg>
+                      </span>
+                      <span class="settings-button-label">Check for updates</span>
                     </button>
                   </div>
-                  <div class="settings-update-meta-row"><span class="settings-update-meta-label">Current Version</span><span id="update-current-version">-</span></div>
-                  <div class="settings-update-meta-row"><span class="settings-update-meta-label">Latest Version</span><span id="update-latest-version">-</span></div>
-                  <div id="settings-update-status" class="settings-inline-status">
-                    <span class="settings-status-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" focusable="false">
-                        <path d="M5 12.5 9.25 16.75 19 7"></path>
-                      </svg>
-                    </span>
-                    <span class="settings-status-text">No update check yet.</span>
+                </section>
+
+                <section class="settings-section settings-section-panel settings-osd-section" data-settings-panel="osd">
+                  <div class="settings-card">
+                    <div class="settings-field-row settings-field-row--monitor">
+                      <div class="settings-field-label">Monitor</div>
+                      <div class="settings-monitor-control">
+                        <select id="osd-monitor"></select>
+                        <label class="settings-toggle" title="Toggle on-screen display">
+                          <input id="osd-enabled" type="checkbox" />
+                          <span class="plugins-toggle-ui" aria-hidden="true"></span>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="settings-field-row settings-field-row--appearance">
+                      <div class="settings-field-label">Appearance</div>
+                      <div class="settings-appearance-grid">
+                        <div class="settings-appearance-control">
+                          <span>Style</span>
+                          <select id="osd-style">
+                            <option value="midnight">Dark</option>
+                            <option value="glass">Glass</option>
+                            <option value="neon">Neon</option>
+                            <option value="studio">Studio</option>
+                          </select>
+                          <div class="osd-style-segments" aria-label="OSD style">
+                            <button type="button" class="osd-style-segment" data-osd-style-option="midnight">Dark</button>
+                            <button type="button" class="osd-style-segment" data-osd-style-option="glass">Glass</button>
+                            <button type="button" class="osd-style-segment" data-osd-style-option="neon">Neon</button>
+                            <button type="button" class="osd-style-segment" data-osd-style-option="studio">Studio</button>
+                          </div>
+                        </div>
+                        <div class="settings-appearance-control">
+                          <span>Transparency</span>
+                          <div class="settings-range-control">
+                            <input id="osd-transparency" class="binding-volume-slider" type="range" min="35" max="100" step="1" value="96" />
+                            <span id="osd-transparency-value" class="settings-range-value">96%</span>
+                          </div>
+                        </div>
+                        <div class="settings-appearance-control">
+                          <span>Size</span>
+                          <div class="settings-range-control">
+                            <input id="osd-scale" class="binding-volume-slider" type="range" min="75" max="150" step="5" value="100" />
+                            <span id="osd-scale-value" class="settings-range-value">100%</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="settings-field-row settings-field-row--position">
+                      <div class="settings-field-label">Position</div>
+                      <div class="settings-position-layout" id="osd-position-picker">
+                        <div class="settings-osd-preview">
+                          <div class="settings-osd-preview-screen">
+                            <button type="button" class="osd-position-dot" data-anchor="top-left" aria-label="Top left"></button>
+                            <button type="button" class="osd-position-dot" data-anchor="top-center" aria-label="Top center"></button>
+                            <button type="button" class="osd-position-dot" data-anchor="top-right" aria-label="Top right"></button>
+                            <button type="button" class="osd-position-dot" data-anchor="center-left" aria-label="Center left"></button>
+                            <button type="button" class="osd-position-dot" data-anchor="center" aria-label="Center"></button>
+                            <button type="button" class="osd-position-dot" data-anchor="center-right" aria-label="Center right"></button>
+                            <button type="button" class="osd-position-dot" data-anchor="bottom-left" aria-label="Bottom left"></button>
+                            <button type="button" class="osd-position-dot" data-anchor="bottom-center" aria-label="Bottom center"></button>
+                            <button type="button" class="osd-position-dot" data-anchor="bottom-right" aria-label="Bottom right"></button>
+                            <div class="settings-osd-preview-card">
+                              <div class="settings-osd-preview-header">
+                                <div class="settings-osd-preview-icon"></div>
+                                <div class="settings-osd-preview-label">MIDIMaster</div>
+                                <div class="settings-osd-preview-value">100%</div>
+                              </div>
+                              <div class="settings-osd-preview-bar">
+                                <div class="settings-osd-preview-fill"></div>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="settings-osd-preview-stand"></div>
+                        </div>
+                        <div class="settings-field-help">The on-screen display will appear in the selected area of your screen.</div>
+                      </div>
+                    </div>
                   </div>
-                  <button id="check-for-updates" type="button" class="settings-action">
-                    <span class="settings-button-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" focusable="false">
-                        <path d="M20 5v5h-5"></path>
-                        <path d="M4 19v-5h5"></path>
-                        <path d="M6.75 9A7 7 0 0 1 18 6.5L20 10"></path>
-                        <path d="M17.25 15A7 7 0 0 1 6 17.5L4 14"></path>
-                      </svg>
-                    </span>
-                    <span class="settings-button-label">Check for updates</span>
-                  </button>
-                </div>
+                </section>
+
+                <section class="settings-section settings-section-panel settings-maintenance-section settings-reset-section" data-settings-panel="maintenance">
+                  <div class="settings-maintenance-layout">
+                    <div class="settings-card settings-maintenance-card settings-maintenance-card--diagnostics">
+                      <div class="settings-maintenance-card-top">
+                        <div class="settings-maintenance-card-main">
+                          <span class="settings-maintenance-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false">
+                              <path d="M3.75 7.75h5l1.75 2h9.75v8.5a2 2 0 0 1-2 2H5.75a2 2 0 0 1-2-2Z"></path>
+                              <path d="M3.75 7.75v-1a2 2 0 0 1 2-2h3.1l1.75 2H18.25a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                          </span>
+                          <span class="settings-maintenance-copy">
+                            <span class="settings-maintenance-title">Diagnostics</span>
+                            <span class="settings-maintenance-description">View application logs and diagnostics.</span>
+                          </span>
+                        </div>
+                        <button id="open-logs-folder" type="button" class="settings-action settings-maintenance-button">
+                          <span class="settings-button-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false">
+                              <path d="M3.75 7.75h5l1.75 2h9.75v8.5a2 2 0 0 1-2 2H5.75a2 2 0 0 1-2-2Z"></path>
+                              <path d="M3.75 7.75v-1a2 2 0 0 1 2-2h3.1l1.75 2H18.25a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                          </span>
+                          <span class="settings-button-label">Open Logs Folder</span>
+                        </button>
+                      </div>
+                      <div class="settings-maintenance-inset">
+                        <span class="settings-maintenance-inset-title">Log files</span>
+                        <span class="settings-maintenance-inset-text">Logs can help troubleshoot issues with devices, updates, plugins, and app startup.</span>
+                      </div>
+                    </div>
+
+                    <div class="settings-card settings-maintenance-card settings-maintenance-card--danger">
+                      <div class="settings-maintenance-card-top">
+                        <div class="settings-maintenance-card-main">
+                          <span class="settings-maintenance-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false">
+                              <path d="M4.75 7.75h14.5"></path>
+                              <path d="M9.25 4.75h5.5"></path>
+                              <path d="M8 7.75v10.5a1.5 1.5 0 0 0 1.5 1.5h5a1.5 1.5 0 0 0 1.5-1.5V7.75"></path>
+                              <path d="M10 11v5"></path>
+                              <path d="M14 11v5"></path>
+                            </svg>
+                          </span>
+                          <span class="settings-maintenance-copy">
+                            <span class="settings-maintenance-title">App Data</span>
+                            <span class="settings-maintenance-description">Resetting app data will restore all settings to their default values.</span>
+                          </span>
+                        </div>
+                        <button id="reset-app-data" type="button" class="settings-reset settings-maintenance-button settings-maintenance-button--danger">
+                          <span class="settings-button-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" focusable="false">
+                              <path d="M4.75 7.75h14.5"></path>
+                              <path d="M9.25 4.75h5.5"></path>
+                              <path d="M8 7.75v10.5a1.5 1.5 0 0 0 1.5 1.5h5a1.5 1.5 0 0 0 1.5-1.5V7.75"></path>
+                              <path d="M10 11v5"></path>
+                              <path d="M14 11v5"></path>
+                            </svg>
+                          </span>
+                          <span class="settings-button-label">Reset App Data</span>
+                        </button>
+                      </div>
+                      <div class="settings-maintenance-inset settings-maintenance-inset--danger">
+                        <span class="settings-maintenance-warning">This action cannot be undone.</span>
+                        <span class="settings-maintenance-inset-text">Profiles, bindings, device selections, and saved app settings will be restored to defaults.</span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </div>
             </div>
           </div>

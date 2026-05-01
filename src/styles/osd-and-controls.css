@@ -42,8 +42,11 @@ body:not(.osd-only) .osd {
 
 body.osd-only .osd {
   position: absolute;
-  right: 16px;
-  bottom: 16px;
+  inset: 0;
+  width: auto;
+  height: auto;
+  box-sizing: border-box;
+  padding: 24px;
 }
 
 body.osd-only[data-anchor$="-left"] .osd {
@@ -73,14 +76,15 @@ body.osd-only[data-anchor^="bottom"] .osd {
 }
 
 .osd-card {
+  --osd-card-offset: 10px;
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(var(--osd-card-offset)) scale(var(--osd-scale, 1));
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .osd-card.visible {
-  opacity: 1;
-  transform: translateY(0);
+  opacity: var(--osd-opacity, 0.96);
+  --osd-card-offset: 0;
 }
 
 .osd-card {
@@ -91,6 +95,43 @@ body.osd-only[data-anchor^="bottom"] .osd {
   border: 1px solid rgba(66, 86, 111, 0.82);
   min-width: 220px;
   box-shadow: 0 16px 34px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  transform-origin: center;
+}
+
+body.osd-only[data-anchor="top-left"] .osd-card {
+  transform-origin: top left;
+}
+
+body.osd-only[data-anchor="top-center"] .osd-card {
+  transform-origin: top center;
+}
+
+body.osd-only[data-anchor="top-right"] .osd-card {
+  transform-origin: top right;
+}
+
+body.osd-only[data-anchor="center-left"] .osd-card {
+  transform-origin: center left;
+}
+
+body.osd-only[data-anchor="center"] .osd-card {
+  transform-origin: center;
+}
+
+body.osd-only[data-anchor="center-right"] .osd-card {
+  transform-origin: center right;
+}
+
+body.osd-only[data-anchor="bottom-left"] .osd-card {
+  transform-origin: bottom left;
+}
+
+body.osd-only[data-anchor="bottom-center"] .osd-card {
+  transform-origin: bottom center;
+}
+
+body.osd-only[data-anchor="bottom-right"] .osd-card {
+  transform-origin: bottom right;
 }
 
 .osd-header {
@@ -193,6 +234,62 @@ body.osd-only[data-anchor^="bottom"] .osd {
   width: 0;
   background: linear-gradient(90deg, #4fa4ff, #75c3ff);
   transition: width 0.08s linear;
+}
+
+body[data-osd-style="glass"] .osd-card {
+  border-color: rgba(127, 191, 255, 0.46);
+  background: rgba(236, 247, 255, 0.86);
+  color: #071421;
+  box-shadow: 0 18px 34px rgba(26, 58, 91, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.84);
+  backdrop-filter: blur(18px);
+}
+
+body[data-osd-style="glass"] .osd-value {
+  color: #285276;
+}
+
+body[data-osd-style="glass"] .osd-bar {
+  background: rgba(157, 184, 210, 0.5);
+}
+
+body[data-osd-style="glass"] .osd-bar-fill {
+  background: linear-gradient(90deg, #238cf3, #68c8ff);
+}
+
+body[data-osd-style="glass"] .osd-tag--mix,
+body[data-osd-style="glass"] .osd-tag--neutral,
+body[data-osd-style="glass"] .osd-tag--action {
+  color: #174669;
+}
+
+body[data-osd-style="neon"] .osd-card {
+  border-color: rgba(41, 230, 255, 0.46);
+  background: rgba(7, 12, 24, 0.94);
+  color: #f2fbff;
+  box-shadow: 0 0 0 1px rgba(255, 71, 224, 0.15), 0 18px 38px rgba(0, 0, 0, 0.5), 0 0 28px rgba(41, 230, 255, 0.18);
+}
+
+body[data-osd-style="neon"] .osd-value {
+  color: #8eeeff;
+}
+
+body[data-osd-style="neon"] .osd-bar-fill {
+  background: linear-gradient(90deg, #29e6ff, #ff47e0);
+}
+
+body[data-osd-style="studio"] .osd-card {
+  border-color: rgba(228, 168, 77, 0.38);
+  background: rgba(28, 26, 23, 0.95);
+  color: #fff8ec;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.38), inset 0 1px 0 rgba(255, 220, 156, 0.08);
+}
+
+body[data-osd-style="studio"] .osd-value {
+  color: #e2bc7a;
+}
+
+body[data-osd-style="studio"] .osd-bar-fill {
+  background: linear-gradient(90deg, #f0b45c, #ffe0a3);
 }
 
 /* Custom Range Slider */

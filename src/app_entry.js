@@ -166,6 +166,11 @@ const {
   connectionsContent,
   osdEnabledToggle,
   osdMonitorSelect,
+  osdStyleSelect,
+  osdTransparencyInput,
+  osdTransparencyValue,
+  osdScaleInput,
+  osdScaleValue,
   osdPositionPicker,
   startWithWindowsSelect,
   startInTraySelect,
@@ -499,6 +504,9 @@ const defaultOsdSettings = {
   monitorName: null,
   monitorId: null,
   anchor: "top-right",
+  style: "midnight",
+  opacity: 0.96,
+  scale: 1,
 };
 
 // Integration connectivity is plugin-owned.
@@ -506,6 +514,17 @@ const defaultOsdSettings = {
 if (isOsdWindow) {
   document.body.classList.add("osd-only");
 }
+
+function applyOsdAppearanceAttributes(settings = {}) {
+  const style = String(settings.style || defaultOsdSettings.style).trim() || defaultOsdSettings.style;
+  const opacity = Math.min(1, Math.max(0.35, Number(settings.opacity ?? defaultOsdSettings.opacity)));
+  const scale = Math.min(1.5, Math.max(0.75, Number(settings.scale ?? defaultOsdSettings.scale)));
+  document.body.dataset.osdStyle = style;
+  document.body.style.setProperty("--osd-opacity", String(opacity));
+  document.body.style.setProperty("--osd-scale", String(scale));
+}
+
+applyOsdAppearanceAttributes(defaultOsdSettings);
 
 function stripDeviceStateSuffix(label) {
   return String(label || "")
@@ -535,6 +554,9 @@ async function preparePage(page) {
     await loadAppSettings();
     await settingsFeature?.loadCurrentAppVersion?.();
     syncAppSettingsUI(appSettings);
+    settingsFeature?.openSettingsPanel?.();
+    settingsFeature?.renderAllSettingsSelectDropdowns?.();
+    settingsFeature?.syncOsdAppearanceControls?.();
   }
 }
 
@@ -549,16 +571,14 @@ const appShellRuntime = createAppShell({
 });
 
 const {
-  loadSidebarCollapsed,
   applySidebarCollapsed,
-  toggleSidebarCollapsed,
   scheduleSidebarNavIndicatorSync,
   switchAppPage,
 } = appShellRuntime;
 
 if (!isOsdWindow) {
   applyTheme(loadStoredTheme());
-  applySidebarCollapsed(loadSidebarCollapsed());
+  applySidebarCollapsed(true);
 }
 
 function startSessionRefresh() {
@@ -730,6 +750,11 @@ settingsFeature = createSettingsFeature({
     settingsPanelClose,
     osdEnabledToggle,
     osdMonitorSelect,
+    osdStyleSelect,
+    osdTransparencyInput,
+    osdTransparencyValue,
+    osdScaleInput,
+    osdScaleValue,
     osdPositionPicker,
     startWithWindowsSelect,
     startInTraySelect,
@@ -1295,24 +1320,20 @@ if (themeToggleButton) {
   themeToggleButton.addEventListener("click", toggleTheme);
 }
 
-if (sidebarCollapseToggle) {
-  sidebarCollapseToggle.addEventListener("click", toggleSidebarCollapsed);
-}
-
 alertsController.bindUi();
 
 // Connections panel opens via openConnectionsPanel()
 
 if (resetAppDataButton) {
-  let awaitingResetConfirm = false;
-  const resetLabel = "Reset app data";
-  const confirmLabel = "Are you sure?";
-
   resetAppDataButton.addEventListener("click", async () => {
-    if (!awaitingResetConfirm) {
-      awaitingResetConfirm = true;
-      resetAppDataButton.textContent = confirmLabel;
-      resetAppDataButton.classList.add("confirming");
+    const confirmed = await alertsController.showConfirm({
+      title: "Reset App Data",
+      message: "This will restore profiles, bindings, device selections, and saved app settings to defaults. This action cannot be undone.",
+      confirmLabel: "Reset",
+      cancelLabel: "Cancel",
+      confirmVariant: "danger",
+    });
+    if (!confirmed) {
       return;
     }
     try {
@@ -1322,14 +1343,6 @@ if (resetAppDataButton) {
     }
     localStorage.clear();
     window.location.reload();
-  });
-
-  settingsPanel?.addEventListener("click", (event) => {
-    if (event.target !== resetAppDataButton && awaitingResetConfirm) {
-      awaitingResetConfirm = false;
-      resetAppDataButton.textContent = resetLabel;
-      resetAppDataButton.classList.remove("confirming");
-    }
   });
 }
 
@@ -1549,8 +1562,12 @@ async function setupListeners() {
       monitorName: payload.monitor_name ?? payload.monitorName ?? null,
       monitorId: payload.monitor_id ?? payload.monitorId ?? null,
       anchor: payload.anchor || "top-right",
+      style: payload.style || defaultOsdSettings.style,
+      opacity: Number(payload.opacity ?? defaultOsdSettings.opacity),
+      scale: Number(payload.scale ?? defaultOsdSettings.scale),
     };
     document.body.setAttribute("data-anchor", osdSettings.anchor || "top-right");
+    applyOsdAppearanceAttributes(osdSettings);
     if (!osdSettings.enabled && isOsdWindow) {
       hideVolumeOsd();
     }
@@ -1911,7 +1928,11 @@ async function startMainApp() {
         monitorName: profile.osd_settings.monitor_name || null,
         monitorId: profile.osd_settings.monitor_id || null,
         anchor: profile.osd_settings.anchor || "top-right",
+        style: profile.osd_settings.style || defaultOsdSettings.style,
+        opacity: Number(profile.osd_settings.opacity ?? defaultOsdSettings.opacity),
+        scale: Number(profile.osd_settings.scale ?? defaultOsdSettings.scale),
       };
+      applyOsdAppearanceAttributes(osdSettings);
     }
     try {
       await startPluginHostIfNeeded();

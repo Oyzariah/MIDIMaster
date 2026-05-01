@@ -23,13 +23,16 @@ pub(crate) fn apply_osd_settings(app: &AppHandle, settings: &OsdSettings) {
         let scale_factor = monitor.scale_factor();
         let size = monitor.size();
         let position = monitor.position();
-        let width = 320.0;
-        let height = 800.0;
+        let scale = settings.scale.clamp(0.75, 1.5);
         let padding = 24.0;
         let logical_width = size.width as f64 / scale_factor;
         let logical_height = size.height as f64 / scale_factor;
         let origin_x = position.x as f64 / scale_factor;
         let origin_y = position.y as f64 / scale_factor;
+        let available_width = (logical_width - (padding * 2.0)).max(1.0);
+        let available_height = (logical_height - (padding * 2.0)).max(1.0);
+        let width = (320.0 * scale).min(available_width);
+        let height = (800.0 * scale).min(available_height);
         let anchor = settings.anchor.as_str();
         let (mut x, mut y) = match anchor {
             "top-left" => (origin_x + padding, origin_y + padding),
@@ -67,8 +70,12 @@ pub(crate) fn apply_osd_settings(app: &AppHandle, settings: &OsdSettings) {
                 origin_y + padding,
             ),
         };
-        x = x.max(origin_x + padding);
-        y = y.max(origin_y + padding);
+        let min_x = origin_x + padding;
+        let min_y = origin_y + padding;
+        let max_x = (origin_x + logical_width - width - padding).max(min_x);
+        let max_y = (origin_y + logical_height - height - padding).max(min_y);
+        x = x.clamp(min_x, max_x);
+        y = y.clamp(min_y, max_y);
         let _ = osd_window.set_size(LogicalSize::new(width, height));
         let _ = osd_window.set_position(LogicalPosition::new(x, y));
     }

@@ -118,6 +118,11 @@ export function createDomRefs() {
   const connectionsContent = document.getElementById("connections-content");
   const osdEnabledToggle = document.getElementById("osd-enabled");
   const osdMonitorSelect = document.getElementById("osd-monitor");
+  const osdStyleSelect = document.getElementById("osd-style");
+  const osdTransparencyInput = document.getElementById("osd-transparency");
+  const osdTransparencyValue = document.getElementById("osd-transparency-value");
+  const osdScaleInput = document.getElementById("osd-scale");
+  const osdScaleValue = document.getElementById("osd-scale-value");
   const osdPositionPicker = document.getElementById("osd-position-picker");
   const startWithWindowsSelect = document.getElementById("start-with-windows");
   const startInTraySelect = document.getElementById("start-in-tray");
@@ -230,6 +235,11 @@ export function createDomRefs() {
     connectionsContent,
     osdEnabledToggle,
     osdMonitorSelect,
+    osdStyleSelect,
+    osdTransparencyInput,
+    osdTransparencyValue,
+    osdScaleInput,
+    osdScaleValue,
     osdPositionPicker,
     startWithWindowsSelect,
     startInTraySelect,

@@ -76,6 +76,37 @@ export function createConnectionsPanelController({
     }
   }
 
+  const navIconPaths = {
+    installed: ["M5 12.5 9 16.5 19 6.5", "M4 5h16v14H4z"],
+    all: ["M5 5h6v6H5z", "M13 5h6v6h-6z", "M5 13h6v6H5z", "M13 13h6v6h-6z"],
+    updates: ["M20 5v5h-5", "M4 19v-5h5", "M6.75 9A7 7 0 0 1 18 6.5L20 10", "M17.25 15A7 7 0 0 1 6 17.5L4 14"],
+    store: ["M6 8h12l-1 11H7L6 8Z", "M9 8a3 3 0 0 1 6 0", "M8 12h8"],
+    audio: ["M6 10v4", "M10 7v10", "M14 5v14", "M18 9v6"],
+    lighting: ["M12 3v2", "M5.65 5.65 7.05 7.05", "M18.35 5.65 16.95 7.05", "M8 13a4 4 0 1 1 8 0c0 1.5-.8 2.3-1.6 3H9.6C8.8 15.3 8 14.5 8 13Z", "M10 20h4", "M9.5 17h5"],
+    streaming: ["M5 7h10v10H5z", "M15 10l4-2v8l-4-2"],
+    utilities: ["M14.7 6.3a4 4 0 0 0-5.4 5.4L4.8 16.2a2.1 2.1 0 0 0 3 3l4.5-4.5a4 4 0 0 0 5.4-5.4", "m14 7 3 3"],
+    category: ["M4 7h16", "M7 12h10", "M9 17h6"],
+  };
+
+  function createNavSvgIcon(item) {
+    const key = item.kind === "category"
+      ? String(item.slug || item.name || "category").toLowerCase()
+      : String(item.id || item.tabId || "").toLowerCase();
+    const icon = document.createElement("span");
+    icon.className = "connections-nav-icon connections-nav-icon--svg";
+    icon.setAttribute("aria-hidden", "true");
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("focusable", "false");
+    for (const pathData of (navIconPaths[key] || navIconPaths.category)) {
+      const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", pathData);
+      svg.appendChild(path);
+    }
+    icon.appendChild(svg);
+    return icon;
+  }
+
   async function mountConnectionsTabs(opts = null) {
     const runId = ++mountRunId;
     const options = (opts && typeof opts === "object") ? opts : {};
@@ -181,6 +212,8 @@ export function createConnectionsPanelController({
           icon.alt = "";
           icon.src = item.icon_data;
           button.appendChild(icon);
+        } else {
+          button.appendChild(createNavSvgIcon(item));
         }
 
         labelWrap.textContent = item.name;

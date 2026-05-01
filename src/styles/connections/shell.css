@@ -42,6 +42,16 @@
   flex: 0 0 auto;
 }
 
+.sidebar-footer-icon svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .sidebar-footer-meta {
   display: flex;
   align-items: center;

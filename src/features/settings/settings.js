@@ -30,6 +30,16 @@ export function createSettingsFeature({
   let settingsDocClickBound = false;
   const settingsSelectDropdowns = new Map();
   let updaterUnlisten = null;
+  let settingsNavIndicatorRaf = 0;
+  let osdAppearanceRaf = 0;
+  let osdPreviewResizeObserver = null;
+  const defaultSettingsSection = "startup";
+  const defaultOsdAppearance = {
+    style: "midnight",
+    opacity: 0.96,
+    scale: 1,
+  };
+  const osdStyles = new Set(["midnight", "glass", "neon", "studio"]);
   const updateState = {
     currentVersion: "-",
     latestVersion: "-",
@@ -50,6 +60,100 @@ export function createSettingsFeature({
     target.textContent = value;
   }
 
+  function clampNumber(value, min, max, fallback) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return fallback;
+    return Math.min(max, Math.max(min, number));
+  }
+
+  function normalizeOsdStyle(style) {
+    const value = String(style || defaultOsdAppearance.style).trim().toLowerCase();
+    return osdStyles.has(value) ? value : defaultOsdAppearance.style;
+  }
+
+  function normalizeOsdAppearance(settings = {}) {
+    return {
+      style: normalizeOsdStyle(settings.style),
+      opacity: clampNumber(settings.opacity, 0.35, 1, defaultOsdAppearance.opacity),
+      scale: clampNumber(settings.scale, 0.75, 1.5, defaultOsdAppearance.scale),
+    };
+  }
+
+  function sliderFillPercent(inputEl, value) {
+    if (!inputEl) return 0;
+    const min = Number(inputEl.min || 0);
+    const max = Number(inputEl.max || 100);
+    const range = max - min;
+    if (!Number.isFinite(min) || !Number.isFinite(max) || range <= 0) return 0;
+    return Math.min(100, Math.max(0, ((Number(value) - min) / range) * 100));
+  }
+
+  function applyOsdAppearanceAttributes(appearance) {
+    const previewCard = d.osdPositionPicker?.querySelector(".settings-osd-preview-card");
+    const previewScreen = d.osdPositionPicker?.querySelector(".settings-osd-preview-screen");
+    const roots = [
+      document.body,
+      d.settingsPanel,
+      d.osdPositionPicker,
+      d.osdPositionPicker?.querySelector(".settings-osd-preview"),
+    ].filter(Boolean);
+    roots.forEach((root) => {
+      root.dataset.osdStyle = appearance.style;
+      root.style.setProperty("--osd-opacity", String(appearance.opacity));
+      root.style.setProperty("--osd-scale", String(appearance.scale));
+    });
+    if (previewCard) {
+      previewCard.style.opacity = String(appearance.opacity);
+      previewCard.style.setProperty("--osd-scale", String(appearance.scale));
+      const screenRect = previewScreen?.getBoundingClientRect?.();
+      const cardWidth = 154;
+      const cardHeight = 54;
+      const maxPreviewScale = screenRect
+        ? Math.min(
+            appearance.scale,
+            Math.max(0.65, ((screenRect.width / 3) - 12) / cardWidth),
+            Math.max(0.65, ((screenRect.height / 3) - 12) / cardHeight),
+          )
+        : appearance.scale;
+      previewCard.style.setProperty("--osd-preview-scale", String(Math.max(0.65, maxPreviewScale)));
+    }
+  }
+
+  function syncOsdAppearanceUi(settings = {}) {
+    const appearance = normalizeOsdAppearance(settings);
+    if (typeof setOsdSettings === "function") {
+      const current = (typeof getOsdSettings === "function") ? (getOsdSettings() || {}) : {};
+      setOsdSettings({ ...current, ...appearance });
+    }
+    applyOsdAppearanceAttributes(appearance);
+    if (d.osdStyleSelect) {
+      d.osdStyleSelect.value = appearance.style;
+      d.osdStyleSelect.classList.add("hidden");
+      d.osdStyleSelect.parentElement?.classList.add("has-segmented-style");
+      d.osdStyleSelect.parentElement?.querySelectorAll("[data-osd-style-option]").forEach((button) => {
+        const selected = button.dataset.osdStyleOption === appearance.style;
+        button.classList.toggle("selected", selected);
+        button.setAttribute("aria-pressed", String(selected));
+      });
+    }
+    if (d.osdTransparencyInput) {
+      const transparency = Math.round(appearance.opacity * 100);
+      d.osdTransparencyInput.value = String(transparency);
+      d.osdTransparencyInput.style.setProperty("--range-fill", `${sliderFillPercent(d.osdTransparencyInput, transparency)}%`);
+      if (d.osdTransparencyValue) {
+        d.osdTransparencyValue.textContent = `${transparency}%`;
+      }
+    }
+    if (d.osdScaleInput) {
+      const scale = Math.round(appearance.scale * 100);
+      d.osdScaleInput.value = String(scale);
+      d.osdScaleInput.style.setProperty("--range-fill", `${sliderFillPercent(d.osdScaleInput, scale)}%`);
+      if (d.osdScaleValue) {
+        d.osdScaleValue.textContent = `${scale}%`;
+      }
+    }
+  }
+
   function renderSidebarVersion() {
     if (!d.sidebarAppVersion) return;
     const currentVersion = String(updateState.currentVersion || "").trim();
@@ -61,8 +165,7 @@ export function createSettingsFeature({
     const enabled = (typeof getAppSettings === "function")
       ? ((getAppSettings() || {}).autoCheckUpdates !== false)
       : true;
-    d.autoCheckUpdatesButton.dataset.enabled = enabled ? "true" : "false";
-    setTextContent(d.autoCheckUpdatesButton, enabled ? "Auto-check: On" : "Auto-check: Off", ".settings-mini-toggle-label");
+    d.autoCheckUpdatesButton.checked = enabled;
   }
 
   function formatUpdaterError(error) {
@@ -249,15 +352,96 @@ export function createSettingsFeature({
     d.settingsPanel.classList.add("hidden");
   }
 
+  function getActiveSettingsSection() {
+    if (!d.settingsPanel) return defaultSettingsSection;
+    return d.settingsPanel.querySelector("[data-settings-section].active")?.dataset?.settingsSection
+      || defaultSettingsSection;
+  }
+
   function openSettingsPanel() {
     if (!d.settingsPanel) return;
     d.settingsPanel.classList.remove("hidden");
+    activateSettingsSection(getActiveSettingsSection());
+    scheduleSettingsNavIndicatorSync({ animate: false });
+  }
+
+  function activateSettingsSection(sectionName) {
+    if (!d.settingsPanel) return;
+    const nextSection = String(sectionName || defaultSettingsSection);
+    const navItems = Array.from(d.settingsPanel.querySelectorAll("[data-settings-section]"));
+    const panels = Array.from(d.settingsPanel.querySelectorAll("[data-settings-panel]"));
+    const hasPanel = panels.some((panel) => panel.dataset.settingsPanel === nextSection);
+    const activeSection = hasPanel ? nextSection : defaultSettingsSection;
+
+    navItems.forEach((item) => {
+      const active = item.dataset.settingsSection === activeSection;
+      item.classList.toggle("active", active);
+      if (active) {
+        item.setAttribute("aria-current", "page");
+      } else {
+        item.removeAttribute("aria-current");
+      }
+    });
+    panels.forEach((panel) => {
+      const active = panel.dataset.settingsPanel === activeSection;
+      panel.classList.toggle("active", active);
+      panel.classList.toggle("hidden", !active);
+    });
+    if (activeSection === "osd") {
+      syncOsdAppearanceControls();
+    }
+    scheduleSettingsNavIndicatorSync({ animate: true });
+  }
+
+  function syncSettingsNavIndicator({ animate = true } = {}) {
+    if (!d.settingsPanel) return;
+    const sidebar = d.settingsPanel.querySelector(".settings-sidebar");
+    const indicator = sidebar?.querySelector(".settings-nav-indicator");
+    const active = sidebar?.querySelector(".settings-nav-item.active");
+    if (!indicator || !active || !sidebar) {
+      if (indicator) indicator.style.opacity = "0";
+      return;
+    }
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    indicator.classList.toggle("is-ready", Boolean(animate));
+    indicator.style.width = `${activeRect.width}px`;
+    indicator.style.height = `${activeRect.height}px`;
+    indicator.style.transform = `translate(${activeRect.left - sidebarRect.left}px, ${activeRect.top - sidebarRect.top}px)`;
+    indicator.style.opacity = "1";
+    if (!animate) {
+      requestAnimationFrame(() => {
+        indicator.classList.add("is-ready");
+      });
+    }
+  }
+
+  function scheduleSettingsNavIndicatorSync({ animate = true } = {}) {
+    if (settingsNavIndicatorRaf) {
+      cancelAnimationFrame(settingsNavIndicatorRaf);
+    }
+    settingsNavIndicatorRaf = requestAnimationFrame(() => {
+      settingsNavIndicatorRaf = 0;
+      syncSettingsNavIndicator({ animate });
+    });
+  }
+
+  function scheduleOsdAppearanceSync() {
+    if (osdAppearanceRaf) {
+      cancelAnimationFrame(osdAppearanceRaf);
+    }
+    osdAppearanceRaf = requestAnimationFrame(() => {
+      osdAppearanceRaf = 0;
+      syncOsdAppearanceControls();
+    });
   }
 
   function updateOsdPositionSelection(anchor) {
     if (!d.osdPositionPicker) return;
+    const selectedAnchor = anchor || "top-right";
+    d.osdPositionPicker.dataset.anchor = selectedAnchor;
     d.osdPositionPicker.querySelectorAll(".osd-position-dot").forEach((dot) => {
-      dot.classList.toggle("selected", dot.dataset.anchor === anchor);
+      dot.classList.toggle("selected", dot.dataset.anchor === selectedAnchor);
     });
   }
 
@@ -287,16 +471,21 @@ export function createSettingsFeature({
     if (d.osdMonitorSelect) {
       d.osdMonitorSelect.value = String(merged.monitorIndex ?? 0);
     }
+    syncOsdAppearanceUi(merged);
     updateOsdPositionSelection(merged.anchor);
     document.body.setAttribute("data-anchor", merged.anchor || "top-right");
 
     try {
+      const appearance = normalizeOsdAppearance(merged);
       await invoke("update_osd_settings", {
         enabled: merged.enabled,
         monitorIndex: merged.monitorIndex,
         monitorName: merged.monitorName || null,
         monitorId: merged.monitorId || null,
         anchor: merged.anchor,
+        style: appearance.style,
+        opacity: appearance.opacity,
+        scale: appearance.scale,
       });
       if (shouldPreviewAfterSave) {
         await invoke("preview_osd");
@@ -316,10 +505,14 @@ export function createSettingsFeature({
           monitorName: settings.monitor_name ?? settings.monitorName ?? null,
           monitorId: settings.monitor_id ?? settings.monitorId ?? null,
           anchor: settings.anchor || "top-right",
+          style: normalizeOsdStyle(settings.style),
+          opacity: clampNumber(settings.opacity, 0.35, 1, defaultOsdAppearance.opacity),
+          scale: clampNumber(settings.scale, 0.75, 1.5, defaultOsdAppearance.scale),
         };
         if (typeof setOsdSettings === "function") {
           setOsdSettings(next);
         }
+        syncOsdAppearanceUi(next);
       }
     } catch (error) {
       console.error("Failed to load OSD settings", error);
@@ -387,6 +580,8 @@ export function createSettingsFeature({
     if (!selectEl) return;
     const entry = ensureSettingsSelectDropdown(selectEl, { title: selectEl.title || selectEl.id || "Select" });
     if (!entry) return;
+    selectEl.classList.add("hidden");
+    selectEl.parentElement?.classList.add("has-custom-select");
     renderNativeSelectDropdown({
       entry,
       selectEl,
@@ -400,10 +595,18 @@ export function createSettingsFeature({
   }
 
   function renderAllSettingsSelectDropdowns() {
-    renderSettingsSelectDropdown(d.startWithWindowsSelect);
-    renderSettingsSelectDropdown(d.startInTraySelect);
-    renderSettingsSelectDropdown(d.minimizeToTraySelect);
-    renderSettingsSelectDropdown(d.exitToTraySelect);
+  }
+
+  function scheduleSettingsControlSync() {
+    requestAnimationFrame(() => {
+      renderAllSettingsSelectDropdowns();
+      syncOsdAppearanceControls();
+    });
+  }
+
+  function syncOsdAppearanceControls() {
+    const current = (typeof getOsdSettings === "function") ? (getOsdSettings() || {}) : {};
+    syncOsdAppearanceUi(current);
   }
 
   function renderMonitorDisplay(option) {
@@ -530,20 +733,16 @@ export function createSettingsFeature({
       setAppSettings(merged);
     }
     if (d.startWithWindowsSelect) {
-      d.startWithWindowsSelect.value = merged.startWithWindows ? "enabled" : "disabled";
-      renderSettingsSelectDropdown(d.startWithWindowsSelect);
+      d.startWithWindowsSelect.checked = Boolean(merged.startWithWindows);
     }
     if (d.startInTraySelect) {
-      d.startInTraySelect.value = merged.startInTray ? "enabled" : "disabled";
-      renderSettingsSelectDropdown(d.startInTraySelect);
+      d.startInTraySelect.checked = Boolean(merged.startInTray);
     }
     if (d.minimizeToTraySelect) {
-      d.minimizeToTraySelect.value = merged.minimizeToTray ? "enabled" : "disabled";
-      renderSettingsSelectDropdown(d.minimizeToTraySelect);
+      d.minimizeToTraySelect.checked = Boolean(merged.minimizeToTray);
     }
     if (d.exitToTraySelect) {
-      d.exitToTraySelect.value = merged.exitToTray ? "enabled" : "disabled";
-      renderSettingsSelectDropdown(d.exitToTraySelect);
+      d.exitToTraySelect.checked = Boolean(merged.exitToTray);
     }
     renderAutoCheckButton();
   }
@@ -584,11 +783,69 @@ export function createSettingsFeature({
   function bindUi() {
     bindUpdaterEvents().catch(() => {});
     if (d.settingsPanel) {
+      activateSettingsSection(defaultSettingsSection);
+      window.addEventListener("resize", () => {
+        scheduleSettingsNavIndicatorSync();
+        scheduleOsdAppearanceSync();
+      });
+      if ("ResizeObserver" in window && d.osdPositionPicker && !osdPreviewResizeObserver) {
+        osdPreviewResizeObserver = new ResizeObserver(scheduleOsdAppearanceSync);
+        osdPreviewResizeObserver.observe(d.osdPositionPicker);
+        const previewScreen = d.osdPositionPicker.querySelector(".settings-osd-preview-screen");
+        if (previewScreen) {
+          osdPreviewResizeObserver.observe(previewScreen);
+        }
+      }
       d.settingsPanel.addEventListener("click", (event) => {
+        const sectionButton = event.target.closest("[data-settings-section]");
+        if (sectionButton && d.settingsPanel.contains(sectionButton)) {
+          activateSettingsSection(sectionButton.dataset.settingsSection);
+          return;
+        }
+        const styleButton = event.target.closest("[data-osd-style-option]");
+        if (styleButton && d.settingsPanel.contains(styleButton) && d.osdStyleSelect) {
+          d.osdStyleSelect.value = normalizeOsdStyle(styleButton.dataset.osdStyleOption);
+          d.osdStyleSelect.dispatchEvent(new Event("change", { bubbles: true }));
+          return;
+        }
         if (d.settingsPanel.classList.contains("target-panel") && event.target === d.settingsPanel) {
           closeSettingsPanel();
         }
       });
+      d.settingsPanel.addEventListener("input", (event) => {
+        if (event.target === d.osdTransparencyInput) {
+          const opacity = clampNumber(Number(d.osdTransparencyInput.value) / 100, 0.35, 1, defaultOsdAppearance.opacity);
+          const current = (typeof getOsdSettings === "function") ? (getOsdSettings() || {}) : {};
+          syncOsdAppearanceUi({ ...current, opacity });
+          return;
+        }
+        if (event.target === d.osdScaleInput) {
+          const scale = clampNumber(Number(d.osdScaleInput.value) / 100, 0.75, 1.5, defaultOsdAppearance.scale);
+          const current = (typeof getOsdSettings === "function") ? (getOsdSettings() || {}) : {};
+          syncOsdAppearanceUi({ ...current, scale });
+        }
+      });
+      d.settingsPanel.addEventListener("change", (event) => {
+        if (event.target === d.osdStyleSelect) {
+          const style = normalizeOsdStyle(d.osdStyleSelect.value);
+          const current = (typeof getOsdSettings === "function") ? (getOsdSettings() || {}) : {};
+          syncOsdAppearanceUi({ ...current, style });
+          applyOsdSettings({ style });
+          return;
+        }
+        if (event.target === d.osdTransparencyInput) {
+          applyOsdSettings({
+            opacity: clampNumber(Number(d.osdTransparencyInput.value) / 100, 0.35, 1, defaultOsdAppearance.opacity),
+          });
+          return;
+        }
+        if (event.target === d.osdScaleInput) {
+          applyOsdSettings({
+            scale: clampNumber(Number(d.osdScaleInput.value) / 100, 0.75, 1.5, defaultOsdAppearance.scale),
+          });
+        }
+      });
+      scheduleSettingsControlSync();
     }
     if (d.settingsPanelClose) {
       d.settingsPanelClose.addEventListener("click", closeSettingsPanel);
@@ -651,32 +908,31 @@ export function createSettingsFeature({
 
     if (d.startWithWindowsSelect) {
       d.startWithWindowsSelect.addEventListener("change", () => {
-        syncAppSettingsUI({ startWithWindows: d.startWithWindowsSelect.value === "enabled" });
+        syncAppSettingsUI({ startWithWindows: d.startWithWindowsSelect.checked });
         persistAppSettings();
       });
     }
     if (d.startInTraySelect) {
       d.startInTraySelect.addEventListener("change", () => {
-        syncAppSettingsUI({ startInTray: d.startInTraySelect.value === "enabled" });
+        syncAppSettingsUI({ startInTray: d.startInTraySelect.checked });
         persistAppSettings();
       });
     }
     if (d.minimizeToTraySelect) {
       d.minimizeToTraySelect.addEventListener("change", () => {
-        syncAppSettingsUI({ minimizeToTray: d.minimizeToTraySelect.value === "enabled" });
+        syncAppSettingsUI({ minimizeToTray: d.minimizeToTraySelect.checked });
         persistAppSettings();
       });
     }
     if (d.exitToTraySelect) {
       d.exitToTraySelect.addEventListener("change", () => {
-        syncAppSettingsUI({ exitToTray: d.exitToTraySelect.value === "enabled" });
+        syncAppSettingsUI({ exitToTray: d.exitToTraySelect.checked });
         persistAppSettings();
       });
     }
     if (d.autoCheckUpdatesButton) {
-      d.autoCheckUpdatesButton.addEventListener("click", () => {
-        const enabled = (getAppSettings?.() || {}).autoCheckUpdates !== false;
-        syncAppSettingsUI({ autoCheckUpdates: !enabled });
+      d.autoCheckUpdatesButton.addEventListener("change", () => {
+        syncAppSettingsUI({ autoCheckUpdates: d.autoCheckUpdatesButton.checked });
         persistAppSettings();
         renderUpdateUi();
       });
@@ -706,6 +962,7 @@ export function createSettingsFeature({
     setUpdateStatus("No update check yet.");
     renderUpdateUi();
     renderAllSettingsSelectDropdowns();
+    scheduleSettingsControlSync();
     loadCurrentAppVersion().catch(() => {});
   }
 
@@ -738,5 +995,8 @@ export function createSettingsFeature({
     persistAppSettings,
     checkForUpdates,
     installAvailableUpdate,
+    activateSettingsSection,
+    renderAllSettingsSelectDropdowns,
+    syncOsdAppearanceControls,
   };
 }
