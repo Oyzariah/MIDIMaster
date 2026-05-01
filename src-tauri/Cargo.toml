@@ -1,6 +1,6 @@
 [package]
 name = "midimaster"
-version = "2.9.3"
+version = "3.0.0"
 edition = "2021"
 default-run = "midimaster"
 license = "MIT"
